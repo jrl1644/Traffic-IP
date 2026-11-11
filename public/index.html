@@ -621,7 +621,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-22";
+const APP_VERSION = "26.11.11-23";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1115,7 +1115,8 @@ function printableHtml(i, cols, withInfo){
   const devs = i.devices;
   const who = me.name || me.username || "";
   return `<div class="pr">
-    <h1 class="pr-title">${nameOf(i.street1)} &amp; ${nameOf(i.street2)}</h1>
+    <div class="pr-head">${(()=>{ const logo = brandLogo || (window.__STANDALONE ? "/favicon.png" : "");
+      return logo ? `<img class="pr-logo" alt="" src="${esc(logo)}">` : ""; })()}<h1 class="pr-title">${nameOf(i.street1)} &amp; ${nameOf(i.street2)}</h1></div>
     ${info ? `<div class="pr-info">${info}</div>` : ""}
     ${devs.length ? `<table class="pr-table"><thead><tr><th class="pr-n">#</th>${cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead>
       <tbody>${devs.map((d,n)=>`<tr><td class="pr-n">${n+1}</td>${cols.map(c=>`<td class="pr-${c.key}">${esc(PRINT_VAL[c.key](d) || "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`
@@ -1125,7 +1126,9 @@ function printableHtml(i, cols, withInfo){
 }
 const PRINT_CSS = `
   .pr{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#000;font-size:11pt;line-height:1.35}
-  .pr-title{font-size:20pt;margin:0 0 6pt;padding-bottom:6pt;border-bottom:2pt solid #000}
+  .pr-head{display:flex;align-items:center;gap:12pt;margin:0 0 8pt;padding-bottom:8pt;border-bottom:2pt solid #000}
+  .pr-logo{height:44pt;max-width:150pt;width:auto;object-fit:contain;flex:none}
+  .pr-title{font-size:20pt;margin:0;line-height:1.15}
   .pr-info{margin:0 0 10pt;display:grid;gap:2pt}
   .pr-table{width:100%;border-collapse:collapse}
   .pr-table th{text-align:left;font-size:9pt;text-transform:uppercase;letter-spacing:.04em;border-bottom:1.2pt solid #000;padding:4pt 6pt}
@@ -1150,7 +1153,8 @@ $("#printGo").onclick = ()=>{
   document.body.classList.add("printing");
   const done = () => { document.body.classList.remove("printing"); document.title = title; $("#printArea").innerHTML = ""; window.removeEventListener("afterprint", done); };
   window.addEventListener("afterprint", done);
-  setTimeout(()=>{ try{ window.print(); }catch{} setTimeout(()=>{ if(document.body.classList.contains("printing") && !window.matchMedia("print").matches) done(); }, 1500); }, 50);
+  const imgs = [...$("#printArea").querySelectorAll("img")].map(im => im.complete ? null : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 2000); })).filter(Boolean);
+  Promise.all(imgs).then(()=>setTimeout(()=>{ try{ window.print(); }catch{} setTimeout(()=>{ if(document.body.classList.contains("printing") && !window.matchMedia("print").matches) done(); }, 1500); }, 50));
 };
 $("#printSave").onclick = async ()=>{
   const i = printInter, ch = printChoice(); if(!i || !ch) return;
