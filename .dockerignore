@@ -1,0 +1,5 @@
+data/
+*.md
+build.py
+app-source.html
+.git

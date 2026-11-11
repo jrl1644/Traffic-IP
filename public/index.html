@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic IP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4f5f2; --panel:#ffffff; --ink:#1c2321; --muted:#66706c; --line:#dfe3df;
+    --accent:#e0a100; --accent-ink:#1c2321; --sign:#1f6f4a; --danger:#b3261e; --chip:#eef1ec;
+    --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'IBM Plex Sans',system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#141816; --panel:#1c211f; --ink:#e8ece9; --muted:#97a19c; --line:#2d3431; --chip:#252b28; --sign:#2f9a68; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45}
+  header{background:var(--sign);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.2px;flex:1;min-width:220px}
+  header h1 small{display:block;font-weight:400;font-size:13px;opacity:.85}
+  .btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer}
+  .btn:hover{filter:brightness(.97)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:4px 8px;font-weight:500}
+  .btn.ghost:hover{color:var(--ink);background:var(--chip)}
+  .btn.ghost.del:hover{color:var(--danger)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  main{max-width:1200px;margin:0 auto;padding:20px 24px 60px}
+  .controls{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px;align-items:end}
+  .controls .f > span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:800px){.controls{grid-template-columns:1fr 1fr}.controls .search{grid-column:1/-1}}
+  .intersearch{margin-bottom:10px}
+  #qiInfo{margin-top:4px;min-height:16px}
+  label.f,div.f.search{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  input,select,textarea{font:inherit;font-size:15px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 16px;color:var(--muted);font-size:14px}
+  .bar .sp{flex:1}
+  .notice{padding:10px 14px;border-radius:8px;background:var(--chip);color:var(--muted);margin-bottom:14px;font-size:14px}
+  .notice.err{color:var(--danger)}
+  .group{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden}
+  .ghead{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none;border-bottom:1px solid var(--line)}
+  .group.collapsed .ghead{border-bottom:none}
+  .group.collapsed .gbody{display:none}
+  .streetrow{display:flex;gap:6px}
+  .dirsel{width:78px;flex:none;padding-left:8px;padding-right:4px}
+  .sign.interstate{display:inline-flex;align-items:center;gap:6px;background:#1d4ea1;box-shadow:0 0 0 1px #1d4ea1;padding-left:5px}
+  .sign.stateroute{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#111;border-color:#111;box-shadow:0 0 0 1px #fff;padding-left:5px}
+  .shield{width:20px;height:22px;flex:none;display:block;margin:-3px 0;filter:drop-shadow(0 0 0.5px rgba(0,0,0,.4))}
+  .sign{background:var(--sign);color:#fff;font-weight:700;border-radius:5px;padding:3px 9px;font-size:14px;border:2px solid #fff;box-shadow:0 0 0 1px var(--sign)}
+  .amp{color:var(--muted);font-weight:600}
+  .ghead .count{margin-left:auto;color:var(--muted);font-size:13px}
+  .caret{color:var(--muted);transition:transform .15s;font-size:12px}
+  .group.collapsed .caret{transform:rotate(-90deg)}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;background:var(--chip)}
+  td.ip,td.mac{font-family:var(--mono);font-size:14px;white-space:nowrap}
+  td.notes{color:var(--muted);font-size:14px;max-width:280px}
+  td.act{white-space:nowrap;text-align:right;width:1%}
+  .type{display:inline-block;background:var(--chip);border-radius:999px;padding:1px 10px;font-size:13px;white-space:nowrap}
+  mark{background:#ffe27a;color:#1c2321;border-radius:2px;padding:0 1px}
+  .empty{text-align:center;color:var(--muted);padding:50px 20px;background:var(--panel);border:1px dashed var(--line);border-radius:10px}
+  .ipcopy{cursor:pointer;border-bottom:1px dotted var(--muted)}
+  @media (max-width:700px){
+    thead{display:none} tr{display:block;padding:8px 0;border-bottom:1px solid var(--line)} tr:last-child{border-bottom:none}
+    td{display:block;border:none;padding:3px 14px} td.act{text-align:left;width:auto}
+    td[data-l]::before{content:attr(data-l)": ";color:var(--muted);font-size:12px;text-transform:uppercase;font-family:var(--sans)}
+  }
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:10}
+  .scrim.open{display:flex}
+  .modal{background:var(--panel);border-radius:12px;width:100%;max-width:560px;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+  .modal h2{margin:0 0 14px;font-size:18px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid2 .full{grid-column:1/-1}
+  @media (max-width:520px){.grid2{grid-template-columns:1fr}}
+  .modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+  .ferr{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
+  .hint{font-size:12px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
+  .colwrap{position:relative}
+  body:not(.standalone) .saOnly{display:none!important}
+  body.standalone .claudeOnly{display:none!important}
+  .acctrow .who b{font-weight:600}
+  .acctrow.off{opacity:.55}
+  .rolechip{font-size:12px;font-weight:600;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:3px 10px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:-4px 0 14px}
+  .tab{font:inherit;font-size:14px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;padding:8px 12px;color:var(--muted);cursor:pointer}
+  .tab.active{color:var(--ink);border-bottom-color:var(--sign)}
+  .pickwrap{position:relative;text-transform:none;letter-spacing:0;font-weight:400}
+  .hits{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.15);z-index:3;max-height:260px;overflow:auto}
+  .hit{display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;font-size:14px;color:var(--ink)}
+  .hit:hover,.hit:focus{background:var(--chip);outline:none}
+  .av{width:26px;height:26px;border-radius:50%;flex:none;object-fit:cover}
+  .who{display:flex;flex-direction:column;flex:1;min-width:0}
+  .who small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #roleMatrix th,#roleMatrix td{text-align:center}
+  #roleMatrix th:first-child,#roleMatrix td:first-child{text-align:left}
+  #roleMatrix input{width:auto}
+  #adminScrim{z-index:11}
+  #pickMap{text-transform:none;letter-spacing:0;font-size:14px;display:inline-flex;align-items:center}
+  input[name="number"]::placeholder{text-transform:none}
+  .maplink{font-size:13px;color:var(--sign);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:2px 8px;background:var(--panel);white-space:nowrap}
+  .maplink:hover{border-color:var(--sign)}
+  .dlrow{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line)}
+  .dlrow:last-child{border-bottom:none}
+  .dlrow .nm{flex:1;font-weight:500}
+  .dlrow small{color:var(--muted)}
+  #devListScrim{z-index:11} #delScrim{z-index:12}
+  .colmenu{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:8px;min-width:200px;z-index:5;color:var(--ink)}
+  .colmenu label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:14px}
+  .colmenu label:hover{background:var(--chip)}
+  .colmenu input{width:auto;margin:0}
+  .colmenu .colfoot{display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+  .toast.show{opacity:1}
+  .idbadge{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--chip);border-radius:5px;padding:2px 7px}
+  .inotes{padding:8px 14px;color:var(--muted);font-size:14px;border-bottom:1px solid var(--line);background:var(--chip)}
+  .noDev{padding:14px;color:var(--muted);font-size:14px}
+  .ghead .gact{display:flex;gap:2px}
+  .hidden{display:none!important}
+  .ptable td,.ptable th{padding:8px 10px}
+  .ptable{border:1px solid var(--line);border-radius:8px;overflow:hidden;display:table}
+  .poolbadge{background:var(--sign);color:#fff}
+  .typechips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;text-transform:none;letter-spacing:0;font-weight:400}
+  .typechips label{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:14px;color:var(--ink);cursor:pointer}
+  .typechips label.taken{opacity:.55;cursor:not-allowed}
+  .typechips input{width:auto;margin:0}
+  .typechips small{color:var(--muted)}
+  header .btn{border-color:rgba(255,255,255,.4)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Traffic IP<small>IP-based field devices, organized by street intersection</small></h1>
+  <span class="rolechip hidden" id="roleChip" title="Your role in this app"></span>
+  <button class="btn hidden" id="adminBtn">Admin</button>
+  <button class="btn saOnly" id="acctBtn" title="Your account">Account</button>
+  <button class="btn" id="devListBtn">Device list</button>
+  <button class="btn" id="poolsBtn">Address pools</button>
+  <button class="btn" id="addInterBtn">+ Add intersection</button>
+</header>
+
+<main>
+  <div id="status" class="notice">Loading inventory…</div>
+
+  <div class="intersearch">
+    <label class="f"><span>Search for intersection <span class="hint" style="text-transform:none;letter-spacing:0">· either order · any spelling · all directions (e.g. “i5 at sr14”, “SR-14 &amp; I-5”)</span></span>
+      <input id="qi" type="search" placeholder="Street at cross street — e.g. I-5 at SR-14" autocomplete="off">
+    </label>
+    <div class="hint" id="qiInfo"></div>
+  </div>
+  <div class="controls">
+    <label class="f search"><span>Search everything</span>
+      <input id="q" type="search" placeholder="e.g. Main St, 10.20.1., camera, Cabinet 4…" autocomplete="off">
+    </label>
+    <label class="f">Street
+      <select id="fStreet"><option value="">All streets</option></select>
+    </label>
+    <label class="f">Device type
+      <select id="fType"><option value="">All types</option></select>
+    </label>
+    <label class="f">Search in
+      <select id="fField">
+        <option value="">All fields</option>
+        <option value="street">Intersections (streets, ID, notes)</option>
+        <option value="ip">IP address</option>
+        <option value="name">Device</option>
+        <option value="type">Device type</option>
+        <option value="mac">MAC address</option>
+        <option value="notes">Device notes</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="bar">
+    <span id="summary"></span>
+    <span class="sp"></span>
+    <button class="btn ghost" id="expandAll">Expand all</button>
+    <button class="btn ghost" id="collapseAll">Collapse all</button>
+    <button class="btn ghost" id="clearBtn">Clear filters</button>
+    <span class="colwrap">
+      <button class="btn ghost" id="colBtn" aria-haspopup="true" aria-expanded="false">Columns ▾</button>
+      <div id="colMenu" class="colmenu hidden" role="menu"></div>
+    </span>
+    <button class="btn ghost" id="csvBtn" title="Copy the filtered list as CSV">Copy CSV</button>
+  </div>
+
+  <div id="list"></div>
+</main>
+
+<!-- Intersection modal -->
+<div class="scrim" id="interScrim">
+  <form class="modal" id="interForm" novalidate>
+    <h2 id="interTitle">Add intersection</h2>
+    <div class="grid2">
+      <label class="f">Street 1 <span class="hint">direction · name</span>
+        <span class="streetrow"><select name="dir1" class="dirsel" title="Directional prefix"><option value="">—</option><optgroup label="Prefix"><option value="N">N</option><option value="S">S</option><option value="E">E</option><option value="W">W</option><option value="NE">NE</option><option value="NW">NW</option><option value="SE">SE</option><option value="SW">SW</option></optgroup><optgroup label="Direction of travel"><option value="NB">NB</option><option value="SB">SB</option><option value="EB">EB</option><option value="WB">WB</option></optgroup></select><input name="street1" list="streetList" placeholder="Main St"></span>
+      </label>
+      <label class="f">Street 2 (cross street) <span class="hint">direction · name</span>
+        <span class="streetrow"><select name="dir2" class="dirsel" title="Directional prefix"><option value="">—</option><optgroup label="Prefix"><option value="N">N</option><option value="S">S</option><option value="E">E</option><option value="W">W</option><option value="NE">NE</option><option value="NW">NW</option><option value="SE">SE</option><option value="SW">SW</option></optgroup><optgroup label="Direction of travel"><option value="NB">NB</option><option value="SB">SB</option><option value="EB">EB</option><option value="WB">WB</option></optgroup></select><input name="street2" list="streetList" placeholder="5th Ave"></span>
+      </label>
+      <label class="f full">Intersection ID / number <span class="hint">optional</span>
+        <input name="number" placeholder="e.g. INT-1042" autocomplete="off" style="text-transform:uppercase">
+        <span class="hint" id="numWarn" style="color:var(--danger)"></span>
+      </label>
+      <label class="f full">GPS coordinates <span class="hint">optional — latitude, longitude</span>
+        <span style="display:flex;gap:6px">
+          <input name="gps" placeholder="e.g. 45.5231, -122.6765 — or paste a Google Maps link" autocomplete="off" style="font-family:var(--mono)">
+          <a class="btn" id="pickMap" href="https://www.google.com/maps" target="_blank" rel="noopener" style="white-space:nowrap;text-decoration:none">🗺 Pick on map</a>
+        </span>
+        <span class="hint" id="gpsInfo"></span>
+        <span class="hint hidden" id="pickHelp" style="text-transform:none;letter-spacing:0">In Google Maps, <b>right-click</b> the spot (long-press on a phone) and click the coordinates at the top of the menu to copy them — then paste here. Pasting the page link also works.</span>
+      </label>
+      <label class="f full">Notes <span class="hint">optional — cabinet location, access, contacts…</span>
+        <textarea name="notes" rows="2"></textarea>
+      </label>
+    </div>
+    <div class="ferr" id="ierr"></div>
+    <div class="actions">
+      <button type="button" class="btn ghost del hidden" id="delInterBtn" style="margin-right:auto">Remove intersection</button>
+      <button type="button" class="btn" id="cancelInter">Cancel</button>
+      <button type="submit" class="btn primary" id="saveInter">Save intersection</button>
+    </div>
+  </form>
+</div>
+
+<!-- Device modal -->
+<div class="scrim" id="editScrim">
+  <form class="modal" id="editForm" novalidate>
+    <h2 id="editTitle">Add device</h2>
+    <div class="grid2">
+      <label class="f full">Intersection
+        <select name="inter" id="interSel"></select>
+      </label>
+      <label class="f newInter">New intersection — street 1
+        <input name="street1" list="streetList" placeholder="Main St">
+      </label>
+      <label class="f newInter">Street 2 (cross street)
+        <input name="street2" list="streetList" placeholder="5th Ave">
+      </label>
+      <label class="f">Device
+        <span style="display:flex;gap:6px">
+          <select name="name" id="devSel"></select>
+          <button type="button" class="btn" id="manageDevBtn" title="Add or remove devices in this list" style="white-space:nowrap">Edit list</button>
+        </span>
+      </label>
+      <label class="f">Device type
+        <select name="type" id="typeSel"></select>
+        <input id="typeOther" class="hidden" placeholder="New device type, e.g. Radar Detector" autocomplete="off" style="margin-top:6px">
+        <span class="hint" id="typeHint"></span>
+      </label>
+      <div class="f full hidden" id="newDevRow">New device for the list
+        <span style="display:flex;gap:6px">
+          <input id="newDevName" placeholder="e.g. Axis P1375 or CAM-NE-01" autocomplete="off">
+          <button type="button" class="btn primary" id="addDevOpt" style="white-space:nowrap">Add to list</button>
+        </span>
+      </div>
+      <label class="f">IP address
+        <span style="display:flex;gap:6px">
+          <input name="ip" placeholder="10.20.1.15" style="font-family:var(--mono)">
+          <button type="button" class="btn" id="newIpBtn" title="Discard this IP and pull the next free one from the pool" style="white-space:nowrap">↻ New IP</button>
+        </span>
+        <span class="hint" id="ipHint"></span>
+      </label>
+      <label class="f">MAC address <span class="hint">optional</span>
+        <input name="mac" placeholder="00:1A:2B:3C:4D:5E" style="font-family:var(--mono)">
+      </label>
+      <label class="f full">Notes <span class="hint">optional — location in cabinet, model, install date…</span>
+        <textarea name="notes" rows="2"></textarea>
+      </label>
+    </div>
+    <div class="ferr" id="ferr"></div>
+    <div class="actions">
+      <button type="button" class="btn ghost del hidden" id="delDevBtn" style="margin-right:auto">Remove device</button>
+      <button type="button" class="btn" id="cancelEdit">Cancel</button>
+      <button type="button" class="btn" id="saveAddBtn" title="Save this device and keep the form open to add more">Save and Add Another</button>
+      <button type="submit" class="btn primary" id="saveBtn">Save</button>
+    </div>
+  </form>
+</div>
+
+<!-- Address pools -->
+<div class="scrim" id="poolScrim">
+  <div class="modal" style="max-width:680px">
+    <h2>Address pools</h2>
+    <p class="hint" style="margin:-6px 0 12px;font-size:14px">A pool is an IP range for one or more device types. Whenever you add a device of that type — at any intersection — it gets the next free address from the pool.</p>
+    <div id="poolList"></div>
+    <form id="poolForm" novalidate style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <h3 id="poolFormTitle" style="margin:0 0 10px;font-size:15px">New pool</h3>
+      <div class="grid2">
+        <label class="f">Pool name
+          <input name="name" placeholder="Downtown cameras" autocomplete="off">
+        </label>
+        <label class="f">IP range
+          <input name="range" placeholder="10.20.0.0/22" style="font-family:var(--mono)" autocomplete="off">
+          <span class="hint" id="poolRangeInfo"></span>
+        </label>
+      </div>
+      <div class="f" style="margin-top:12px">Device types that get IPs from this pool
+        <div id="poolTypes" class="typechips"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="newPoolType" list="typeList" placeholder="Another device type…" style="max-width:260px">
+          <button type="button" class="btn" id="addPoolType">Add type</button>
+        </div>
+      </div>
+      <div class="ferr" id="perr"></div>
+      <div class="actions" style="margin-top:6px">
+        <button type="button" class="btn hidden" id="cancelPoolEdit">Cancel edit</button>
+        <button type="submit" class="btn primary" id="savePool">Add pool</button>
+      </div>
+    </form>
+    <div class="actions"><button class="btn" id="closePools">Done</button></div>
+  </div>
+</div>
+
+<!-- Device list -->
+<div class="scrim" id="devListScrim">
+  <div class="modal" style="max-width:520px">
+    <h2>Device list</h2>
+    <p class="hint" style="margin:-6px 0 12px;font-size:14px">These are the choices in the Device dropdown. Removing one from the list doesn't change devices already using it.</p>
+    <div id="devListMissing"></div>
+    <div id="devList" style="max-height:340px;overflow:auto"></div>
+    <form id="devListForm" novalidate style="display:flex;gap:8px;margin-top:14px">
+      <input id="devListNew" placeholder="Add a device to the list…" autocomplete="off">
+      <button type="submit" class="btn primary" style="white-space:nowrap">Add</button>
+    </form>
+    <div class="ferr" id="dlerr"></div>
+    <div class="actions"><button class="btn" id="closeDevList">Done</button></div>
+  </div>
+</div>
+
+<!-- Admin -->
+<div class="scrim" id="adminScrim">
+  <div class="modal" style="max-width:760px">
+    <h2>Admin</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="people" role="tab"><span class="claudeOnly">People &amp; roles</span><span class="saOnly">Accounts &amp; roles</span></button>
+      <button class="tab" data-tab="roles" role="tab">Role privileges</button>
+      <button class="tab" data-tab="access" role="tab">Access &amp; sharing</button>
+    </div>
+    <div class="notice hidden" id="adminRO">You can view these settings. Only the owner and people shared as <b>Editor</b> on claude.ai can change them.</div>
+
+    <section class="tabpane" data-pane="people">
+      <div id="acctAdmin" class="hidden">
+        <form id="newAcct" novalidate class="grid2" style="margin-bottom:12px;padding:12px;border:1px solid var(--line);border-radius:10px">
+          <div class="full" style="font-weight:600">Create an account</div>
+          <label class="f">Name<input name="name" autocomplete="off"></label>
+          <label class="f">Username<input name="username" autocomplete="off" placeholder="e.g. jsmith"></label>
+          <label class="f">Email <span class="hint">optional</span><input name="email" type="email" autocomplete="off"></label>
+          <label class="f">Role<select name="role"><option value="technician">Technician</option><option value="viewer">Viewer</option><option value="admin">Admin</option></select></label>
+          <label class="f full">Temporary password <span class="hint">at least 8 characters — share it with them; they can change it after signing in</span>
+            <span style="display:flex;gap:6px"><input name="password" autocomplete="new-password" style="font-family:var(--mono)"><button type="button" class="btn" id="genPw">Generate</button></span></label>
+          <div class="full" style="display:flex;justify-content:flex-end"><button class="btn primary" type="submit">Create account</button></div>
+        </form>
+        <div id="acctList"></div>
+      </div>
+      <div class="f claudeOnly" style="margin-bottom:10px">Add a person
+        <div class="pickwrap">
+          <input id="adminSearch" placeholder="Search people in your organization by name or email…" autocomplete="off">
+          <div id="adminHits" class="hits hidden"></div>
+        </div>
+        <span class="hint" style="text-transform:none;letter-spacing:0">Adding someone here sets their role. They also need access to the app through claude.ai's Share menu.</span>
+      </div>
+      <div id="peopleList" class="claudeOnly"></div>
+      <div class="dlrow claudeOnly" style="margin-top:6px;border-top:1px solid var(--line)">
+        <span class="nm">Everyone else with access <small style="font-weight:400">(not listed above)</small></span>
+        <select id="defaultRole" style="width:auto"></select>
+      </div>
+    </section>
+
+    <section class="tabpane hidden" data-pane="roles">
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Tick what each role may do. Admins can always do everything.</p>
+      <div style="overflow:auto"><table class="ptable" id="roleMatrix"></table></div>
+    </section>
+
+    <section class="tabpane hidden" data-pane="access">
+      <div id="accessInfo"></div>
+    </section>
+
+    <div class="ferr" id="aerr"></div>
+    <div class="actions"><button class="btn" id="closeAdmin">Done</button></div>
+  </div>
+</div>
+
+<!-- My account (standalone) -->
+<div class="scrim" id="myAcctScrim">
+  <form class="modal" id="myAcctForm" novalidate style="max-width:440px">
+    <h2>Your account</h2>
+    <p id="myAcctWho" style="margin:-6px 0 14px;color:var(--muted)"></p>
+    <label class="f">Current password<input name="current" type="password" autocomplete="current-password"></label>
+    <label class="f" style="margin-top:10px">New password <span class="hint">at least 8 characters</span><input name="password" type="password" autocomplete="new-password"></label>
+    <label class="f" style="margin-top:10px">Confirm new password<input name="confirm" type="password" autocomplete="new-password"></label>
+    <div class="ferr" id="myAcctErr"></div>
+    <div class="actions">
+      <button type="button" class="btn ghost del" id="signOut" style="margin-right:auto">Sign out</button>
+      <button type="button" class="btn" id="closeMyAcct">Close</button>
+      <button type="submit" class="btn primary">Change password</button>
+    </div>
+  </form>
+</div>
+
+<!-- Confirm -->
+<div class="scrim" id="delScrim">
+  <div class="modal">
+    <h2 id="delTitle">Remove?</h2>
+    <p id="delText" style="margin:0"></p>
+    <label class="f hidden" id="verifyWrap" style="margin-top:14px">
+      <span id="verifyLabel"></span>
+      <input id="verifyInput" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="actions">
+      <button class="btn" id="cancelDel">Cancel</button>
+      <button class="btn danger" id="confirmDel">Remove</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="streetList"></datalist>
+<datalist id="typeList"></datalist>
+<div class="toast" id="toast"></div>
+
+<script src="/standalone.js"></script>
+<script>
+const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
+const $ = s => document.querySelector(s);
+let db = null, devices = [], interDocs = [], poolDocs = [], shareWrite = true;
+let pools = new Map();           // id -> {id, name, range, types:[]}
+let deviceOpts = [];             // [{id, name}] — choices for the Device dropdown
+let inters = new Map();          // key -> {key, street1, street2, number, notes, docId|null, devices:[]}
+let editingId = null, editingInterKey = null, pendingDelete = null;
+const collapsed = new Set();
+
+/* ---------- roles & privileges ----------
+   claude.ai sharing decides who can open the app and who can save at all (Viewer/Commenter = look only).
+   Inside that, each person's app role decides what they may do. The owner is always an Admin. */
+const PERMS = [
+  ["devices.add","Add devices"], ["devices.edit","Edit devices"], ["devices.remove","Remove devices"],
+  ["inters.add","Add intersections"], ["inters.edit","Edit intersections"], ["inters.remove","Remove intersections"],
+  ["devlist.manage","Manage the Device list"], ["pools.manage","Manage address pools"], ["export.csv","Copy CSV export"],
+];
+const ROLE_ORDER = ["admin","technician","viewer"];
+const DEFAULT_ROLES = {
+  admin:      {label:"Admin",      perms:Object.fromEntries(PERMS.map(([k])=>[k,true]))},
+  technician: {label:"Technician", perms:{"devices.add":true,"devices.edit":true,"devices.remove":false,"inters.add":true,"inters.edit":true,"inters.remove":false,"devlist.manage":false,"pools.manage":false,"export.csv":true}},
+  viewer:     {label:"Viewer",     perms:{"export.csv":true}},
+};
+let roleCfg = {roles:DEFAULT_ROLES, defaultRole:"viewer", ownerId:null};
+let members = new Map();          // user id -> {role, added}
+let me = {id:null, isOwner:false, canEdit:false};
+let userNS = null, rolesLoaded = false;
+function myRole(){
+  if(me.isOwner) return "admin";
+  if(window.__STANDALONE && me.role) return roleCfg.roles[me.role] ? me.role : "viewer";   // standalone: role is on the account
+  const r = (me.id && members.get(me.id)?.role) || roleCfg.defaultRole || "viewer";
+  return roleCfg.roles[r] ? r : "viewer";
+}
+function can(perm){
+  if(perm==="admin.menu") return myRole()==="admin";
+  if(!shareWrite && perm!=="export.csv") return false;     // claude.ai sharing: view-only
+  if(!me.isOwner && !rolesLoaded) return false;             // wait for roles before offering changes
+  if(myRole()==="admin") return true;
+  return !!roleCfg.roles[myRole()]?.perms?.[perm];
+}
+
+/* ---------- helpers ---------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s ?? "").trim().toLowerCase();
+const tidy = s => String(s ?? "").trim().replace(/\s+/g," ");
+/* "i-5", "I 5", "i5", "Interstate 5" → "I-5" (anything after the number is kept as typed) */
+/* quoted text is kept exactly as typed; the quotes are stored but hidden when shown */
+const plainStreet = s => String(s ?? "").replace(/"/g,"").replace(/\s+/g," ").trim();
+function fixStreet(name){
+  const t = tidy(String(name ?? "").replace(/[“”„″]/g,'"'));
+  const up = rest => rest.replace(/\b(nb|sb|eb|wb)\b/gi, x=>x.toUpperCase());
+  let m = t.match(/^(?:interstate|i)\s*-?\s*(\d{1,3}[a-z]?)(?![a-z0-9])(.*)$/i);
+  if(m) return `I-${m[1].toUpperCase()}${up(m[2])}`;
+  m = t.match(/^(?:state\s*route|sr)\s*-?\s*(\d{1,4}[a-z]?)(?![a-z0-9])(.*)$/i);
+  if(m) return `SR-${m[1].toUpperCase()}${up(m[2])}`;
+  return titleStreet(t);
+}
+/* "main st" → "Main St", "se 82nd ave" → "SE 82nd Ave", "MLK JR BLVD" → "Mlk Jr Blvd"; keeps "McLoughlin" as typed */
+const UPPER_WORDS = new Set(["n","s","e","w","ne","nw","se","sw","nb","sb","eb","wb","us","sr","po"]);
+const SMALL_WORDS = new Set(["of","the","and","de","la","del"]);
+function titleWord(w, first){
+  if(!w) return w;
+  const lower = w.toLowerCase();
+  if(UPPER_WORDS.has(lower.replace(/\.$/,""))) return w.toUpperCase();
+  if(/^\d/.test(w)) return lower;                                        // 82nd, 1st, 100th
+  if(!first && SMALL_WORDS.has(lower)) return lower;                      // Avenue of the Stars
+  if(/[a-z]/.test(w) && /[A-Z]/.test(w.slice(1))) return w[0].toUpperCase()+w.slice(1);   // McLoughlin, DeKalb as typed
+  let out = lower[0].toUpperCase() + lower.slice(1);
+  out = out.replace(/^Mc([a-z])/, (_,c)=>"Mc"+c.toUpperCase())          // mcloughlin → McLoughlin
+           .replace(/^([OD])'([a-z])/, (_,a,c)=>a+"'"+c.toUpperCase());   // o'brien → O'Brien
+  return out;
+}
+function titleStreet(t){
+  let first = true;
+  return t.split(/("[^"]*"?)/).map(seg=>{
+    if(seg.startsWith('"')){ if(seg.replace(/"/g,"").trim()) first = false; return seg; }   // keep quoted text as typed
+    return seg.split(" ").map(word=>{
+      if(!word) return word;
+      const out = word.split("-").map((part,j)=>titleWord(part, first && j===0)).join("-");
+      first = false; return out;
+    }).join(" ");
+  }).join("");
+}
+const interstateNum = name => (fixStreet(name).match(/^I-(\d{1,3}[A-Z]?)(?![A-Za-z0-9])/)||[])[1] || "";
+const stateRouteNum = name => (fixStreet(name).match(/^SR-(\d{1,4}[A-Z]?)(?![A-Za-z0-9])/)||[])[1] || "";
+/* "interstate" | "state" | "street" */
+const roadKind = name => interstateNum(name) ? "interstate" : stateRouteNum(name) ? "state" : "street";
+const isHighway = name => roadKind(name) !== "street";
+/* Washington State Route marker: white profile on a black square (traced from the official marker, number omitted) */
+function stateRouteSvg(){
+  return `<svg class="shield" viewBox="0 0 24 24" aria-hidden="true">
+    <rect width="24" height="24" rx="2.5" fill="#111"/>
+    <path d="M6.32 1.84 L5.68 2.72 L5.6 2.96 L4.64 3.92 L2.96 7.2 L3.04 8.4 L2.72 8.72 L2.08 10.0 L1.6 11.36 L1.6 11.84 L1.92 12.08 L2.32 12.08 L2.4 12.0 L2.8 12.0 L2.88 12.08 L2.88 12.96 L2.8 13.04 L2.8 13.44 L2.72 13.6 L2.96 14.0 L2.96 14.72 L2.56 15.6 L2.64 16.0 L2.96 16.32 L3.28 16.48 L3.52 16.48 L3.92 16.64 L4.4 16.64 L4.48 16.72 L5.68 16.8 L6.64 17.12 L7.2 17.76 L7.2 18.4 L6.48 19.6 L3.76 22.16 L2.96 23.2 L3.04 23.28 L21.76 23.28 L22.0 23.2 L22.16 23.04 L22.08 22.96 L22.08 22.72 L21.68 22.0 L20.96 21.28 L20.24 20.8 L19.76 20.32 L19.76 19.92 L20.08 19.6 L20.32 19.12 L20.4 18.24 L20.64 17.76 L20.64 17.6 L20.08 17.68 L19.6 18.0 L18.96 18.24 L18.56 17.84 L18.32 17.2 L18.32 16.4 L18.48 16.16 L19.12 15.6 L20.48 14.64 L21.44 13.68 L21.76 12.72 L21.84 11.36 L21.76 11.28 L21.76 10.96 L21.44 10.32 L20.56 9.2 L20.0 8.24 L19.2 5.28 L18.24 3.44 L17.12 2.24 L16.32 1.68 L15.28 1.2 L14.24 0.88 L13.52 0.8 L13.44 0.72 L11.2 0.64 L11.12 0.72 L9.76 0.8 L9.68 0.88 L8.96 0.96 L8.0 1.28 L7.76 1.28 L6.56 1.68 Z" fill="#fff"/>
+  </svg>`;
+}
+function shieldSvg(){
+  return `<svg class="shield" viewBox="0 0 24 26" aria-hidden="true">
+    <path d="M2.2 3.2 Q12 -0.8 21.8 3.2 Q23.2 15.5 12 25 Q0.8 15.5 2.2 3.2Z" fill="#fff"/>
+    <path d="M3.6 4.4 Q12 1 20.4 4.4 Q21.7 15 12 23.2 Q2.3 15 3.6 4.4Z" fill="#1d4ea1"/>
+    <path d="M3.6 4.4 Q12 1 20.4 4.4 L20.65 8.6 L3.35 8.6Z" fill="#c8102e"/>
+  </svg>`;
+}
+/* a street "sign" chip; interstates get the shield */
+function streetChip(name, hl){
+  const kind = roadKind(name);
+  if(kind==="interstate") return `<span class="sign interstate" title="Interstate ${esc(interstateNum(name))}">${shieldSvg()}${hl(plainStreet(name),"street")}</span>`;
+  if(kind==="state") return `<span class="sign stateroute" title="Washington State Route ${esc(stateRouteNum(name))}">${stateRouteSvg()}${hl(plainStreet(name),"street")}</span>`;
+  return `<span class="sign">${hl(plainStreet(name),"street")}</span>`;
+}
+/* directional prefix helpers */
+const DIRS = ["N","S","E","W","NE","NW","SE","SW"];
+const STREET_SUFFIX = /^(st|street|ave|avenue|rd|road|blvd|dr|drive|ln|lane|way|ct|pl|pkwy|hwy|cir|ter|trl)\.?$/i;
+const BOUND = ["NB","SB","EB","WB"];
+/* "N Main St" → {dir:"N", name:"Main St"}; "I-5 NB" → {dir:"NB", name:"I-5"}; leaves "E St", "North Lake Dr" alone */
+function splitDir(full){
+  const t = tidy(full);
+  const b = t.match(/^(.+?)\s+(nb|sb|eb|wb)$/i);
+  if(b) return {dir:b[2].toUpperCase(), name:b[1]};
+  const m = t.match(/^(n|s|e|w|ne|nw|se|sw)\.?\s+(.+)$/i);
+  if(!m || STREET_SUFFIX.test(m[2])) return {dir:"", name:t};
+  return {dir:m[1].toUpperCase(), name:m[2]};
+}
+/* prefixes go in front ("N Main St"); directions of travel go after ("I-5 NB") */
+function joinDir(dir, name){
+  const n = fixStreet(name);
+  if(!dir || !n) return n;
+  if(BOUND.includes(dir)) return `${n.replace(/\s+(nb|sb|eb|wb)$/i,"")} ${dir}`;
+  return isHighway(n) ? n : `${dir} ${n}`;
+}
+/* interstates and state routes take only NB/SB/EB/WB */
+function syncDirOptions(sel, name){
+  const inter = isHighway(name);
+  [...sel.options].forEach(o=>{ if(o.value && !BOUND.includes(o.value)) o.disabled = inter; });
+  if(inter && sel.value && !BOUND.includes(sel.value)) sel.value = "";
+}
+document.addEventListener("focusout", e=>{
+  const el = e.target;
+  if(el.matches && el.matches('input[name="street1"],input[name="street2"]') && el.value.trim()){
+    let f = fixStreet(el.value);
+    const dirSel = el.form?.id==="interForm" ? el.form.elements[el.name==="street1"?"dir1":"dir2"] : null;
+    if(dirSel){ const sp = splitDir(f); if(sp.dir){ dirSel.value = sp.dir; f = fixStreet(sp.name); } }
+    if(f!==el.value) el.value = f;
+    if(dirSel) syncDirOptions(dirSel, f);
+  }
+});
+const interKey = (a,b) => [norm(plainStreet(fixStreet(a))),norm(plainStreet(fixStreet(b)))].sort().join(" & ");
+const interDocId = key => "i-" + key.replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,180);
+const interLabel = i => `${plainStreet(i.street1)} & ${plainStreet(i.street2)}`;
+function ipNum(ip){
+  const p = String(ip).split(".").map(Number);
+  return p.length===4 && p.every(n=>Number.isInteger(n)&&n>=0&&n<=255) ? ((p[0]*256+p[1])*256+p[2])*256+p[3] : Infinity;
+}
+const numToIp = n => [n>>>24 & 255, n>>>16 & 255, n>>>8 & 255, n & 255].join(".");
+const MAX_RANGE = 65536;
+/* Parses "10.20.1.0/24", "10.20.1.10 - 10.20.1.50", "10.20.1.10-50" or a single IP.
+   Returns {s, e, text} (numbers + normalized display), null for blank, or {error}. */
+function parseRange(raw){
+  const t = String(raw||"").trim();
+  if(!t) return null;
+  let m = t.match(/^(\d{1,3}(?:\.\d{1,3}){3})\s*\/\s*(\d{1,2})$/);
+  if(m){
+    const base = ipNum(m[1]), bits = +m[2];
+    if(base===Infinity || bits>32) return {error:"That CIDR range isn't valid."};
+    if(bits<16) return {error:"Ranges larger than a /16 aren't supported."};
+    const size = 2 ** (32-bits), net = Math.floor(base/size)*size;
+    // usable hosts: skip network and broadcast addresses except for /31 and /32
+    const s = bits>=31 ? net : net+1, e = bits>=31 ? net+size-1 : net+size-2;
+    return {s, e, text:`${numToIp(net)}/${bits}`};
+  }
+  m = t.match(/^(\d{1,3}(?:\.\d{1,3}){3})\s*(?:-|–|to)\s*(\d{1,3}(?:\.\d{1,3}){0,3})$/i);
+  if(m){
+    const s = ipNum(m[1]);
+    let endStr = m[2];
+    const parts = endStr.split(".");
+    if(parts.length<4) endStr = m[1].split(".").slice(0,4-parts.length).concat(parts).join(".");
+    const e = ipNum(endStr);
+    if(s===Infinity || e===Infinity) return {error:"Use IPv4 addresses, e.g. 10.20.1.10 - 10.20.1.50."};
+    if(e<s) return {error:"The range end must come after the start."};
+    if(e-s+1>MAX_RANGE) return {error:"Ranges larger than 65,536 addresses aren't supported."};
+    return {s, e, text:`${numToIp(s)} – ${numToIp(e)}`};
+  }
+  const one = ipNum(t);
+  if(one!==Infinity) return {s:one, e:one, text:numToIp(one)};
+  return {error:"Enter a range like 10.20.1.0/24 or 10.20.1.10 - 10.20.1.50."};
+}
+const rangeSize = r => r ? r.e - r.s + 1 : 0;
+const inRange = (ip, r) => { const n = ipNum(ip); return !!r && n!==Infinity && n>=r.s && n<=r.e; };
+/* lowest IP in the range that no device (other than excludeId) is using */
+function nextFreeIp(r, excludeId, skip){
+  if(!r) return null;
+  const used = new Set(devices.filter(d=>d.id!==excludeId).map(d=>ipNum(d.ip)));
+  for(let n=r.s; n<=r.e; n++) if(!used.has(n) && !(skip && skip.has(n))) return numToIp(n);
+  return null;
+}
+const usedInRange = (r, excludeId) => r ? devices.filter(d=>d.id!==excludeId && inRange(d.ip,r)).length : 0;
+function validIp(ip){
+  if (ipNum(ip) !== Infinity && !/^0\d|\.0\d/.test(ip)) return true;
+  return /^[0-9a-f:]+$/i.test(ip) && ip.includes(":") && ip.split(":").length<=8 && ip.length>=3;
+}
+function validMac(m){ return !m || /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i.test(m) || /^[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}$/i.test(m); }
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2400); }
+function setStatus(msg, err){ const s=$("#status"); if(!msg){s.style.display="none";return;} s.style.display=""; s.textContent=msg; s.classList.toggle("err",!!err); }
+function highlight(text, terms){
+  const out = esc(text);
+  if (!terms.length) return out;
+  const re = new RegExp("(" + terms.map(t=>esc(t).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|") + ")","gi");
+  return out.replace(re,"<mark>$1</mark>");
+}
+function writeError(ex){
+  if(window.__STANDALONE && ex?.message){ return ex.message; }   // the server explains (permission, duplicate IP…)
+  if(ex?.code==="invalid_argument"){ shareWrite=false; applyWriteMode(); render(); return "You have view-only access to this inventory."; }
+  if(ex?.code==="quota_exceeded") return "The inventory is full — remove some entries first.";
+  return "Couldn't save right now. Please try again.";
+}
+
+/* ---------- model ---------- */
+function rebuild(){
+  pools = new Map();
+  poolDocs.forEach(p=>{ const r = parseRange(p.range); pools.set(p.id,{id:p.id, name:p.name||"Pool", range:(r&&!r.error)?r:null, types:Array.isArray(p.types)?p.types:[]}); });
+  inters = new Map();
+  interDocs.forEach(i=>{
+    const key = interKey(i.street1,i.street2);
+    if(!inters.has(key)) inters.set(key,{key, street1:fixStreet(i.street1), street2:fixStreet(i.street2), number:String(i.number||"").toUpperCase(), notes:i.notes||"", gps:(typeof i.lat==="number" && typeof i.lon==="number") ? {lat:i.lat, lon:i.lon} : null, docId:i.id, devices:[]});
+  });
+  devices.forEach(d=>{
+    const key = interKey(d.street1,d.street2);
+    if(!inters.has(key)) inters.set(key,{key, street1:fixStreet(d.street1), street2:fixStreet(d.street2), number:"", notes:"", gps:null, docId:null, devices:[]});
+    inters.get(key).devices.push(d);
+  });
+  inters.forEach(i=>i.devices.sort((a,b)=>ipNum(a.ip)-ipNum(b.ip) || String(a.ip).localeCompare(b.ip)));
+}
+const sortedInters = () => [...inters.values()].sort((a,b)=>a.key.localeCompare(b.key,undefined,{numeric:true}));
+
+/* ---------- filtering ---------- */
+const interText = i => [i.street1,i.street2,i.number,i.notes,gpsText(i.gps)].join(" ");
+/* the pool that hands out IPs for a device type */
+const typePool = type => !type ? null : [...pools.values()].find(p=>p.types.some(t=>norm(t)===norm(type))) || null;
+function devText(d,f){
+  switch(f){
+    case "ip": return d.ip; case "name": return d.name; case "type": return d.type;
+    case "mac": return d.mac||""; case "notes": return d.notes||"";
+    default: return [d.ip,d.name,d.type,d.mac,d.notes].join(" ");
+  }
+}
+function getTerms(){ return norm($("#q").value).split(/\s+/).filter(Boolean); }
+function isFiltering(){ return !!($("#qi").value.trim() || $("#q").value.trim() || $("#fStreet").value || $("#fType").value); }
+/* returns [{inter, devices}] to show */
+/* ---------- intersection search ---------- */
+const compact = s => fixStreet(s).toLowerCase().replace(/[^a-z0-9]/g,"");
+const INTER_SPLIT = /\s+(?:at|and|x|with)\s+|\s*[&@\/+,]\s*/i;
+/* "i5 at sr14", "SR-14 & I-5", "I5 / SR 14", "main and 5th" → ["i5","sr14"] (compacted) */
+function parseInterQuery(text){
+  const t = tidy(text);
+  if(!t) return [];
+  return splitInterQuery(t).map(compact).filter(Boolean);
+}
+/* split on at/&/and…; "i5 sr14" (two highways, just a space) also counts as two streets */
+function splitInterQuery(t){
+  let parts = t.split(INTER_SPLIT).map(x=>x.trim()).filter(Boolean);
+  if(parts.length===1){
+    const toks = parts[0].split(/\s+/);
+    if(toks.length===2 && toks.every(x=>roadKind(x)!=="street")) parts = toks;
+  }
+  return parts.slice(0,2);
+}
+/* does a typed street match a saved one? "sr14" matches "SR-14", "SR-14 WB", but not "SR-140" */
+function streetMatches(part, street){
+  const s = compact(street), i = s.indexOf(part);
+  if(i<0) return false;
+  const after = s[i+part.length], lastTyped = part[part.length-1];
+  return !(after && /[0-9]/.test(after) && /[0-9]/.test(lastTyped));
+}
+function interMatches(parts, i){
+  if(!parts.length) return true;
+  if(parts.length===1) return streetMatches(parts[0], i.street1) || streetMatches(parts[0], i.street2);
+  const [a,b] = parts;
+  return (streetMatches(a,i.street1) && streetMatches(b,i.street2)) || (streetMatches(a,i.street2) && streetMatches(b,i.street1));
+}
+
+function filtered(){
+  const terms = getTerms(), st=$("#fStreet").value, ty=$("#fType").value, fld=$("#fField").value;
+  const iparts = parseInterQuery($("#qi").value);
+  const out = [];
+  for(const i of sortedInters()){
+    if(st && norm(i.street1)!==st && norm(i.street2)!==st) continue;
+    if(!interMatches(iparts, i)) continue;
+    let devs = ty ? i.devices.filter(d=>norm(d.type)===ty) : i.devices;
+    if(ty && !devs.length) continue;
+    if(terms.length){
+      const iHay = norm(interText(i));
+      const interMatches = (fld===""||fld==="street") && terms.every(t=>iHay.includes(t));
+      if(!interMatches){
+        if(fld==="street") continue;
+        devs = devs.filter(d=>{ const h = norm(devText(d,fld)) + (fld==="" ? " "+iHay : ""); return terms.every(t=>h.includes(t)); });
+        if(!devs.length) continue;
+      }
+    }
+    out.push({inter:i, devices:devs});
+  }
+  return out;
+}
+
+/* ---------- render ---------- */
+function refreshOptions(){
+  const streets = new Map(), types = new Map();
+  inters.forEach(i=>[i.street1,i.street2].forEach(s=>{ if(s && !streets.has(norm(s))) streets.set(norm(s),s); }));
+  devices.forEach(d=>{ if(d.type && !types.has(norm(d.type))) types.set(norm(d.type),d.type); });
+  const fill = (sel, map, label) => {
+    const cur = sel.value;
+    const opts = [...map.entries()].sort((a,b)=>a[1].localeCompare(b[1],undefined,{numeric:true}));
+    sel.innerHTML = `<option value="">${label}</option>` + opts.map(([k,v])=>`<option value="${esc(k)}">${esc(v)}</option>`).join("");
+    sel.value = map.has(cur) ? cur : "";
+  };
+  {
+    const sel = $("#fStreet"), cur = sel.value;
+    const groups = {interstate:[], state:[], street:[]};
+    [...streets.entries()].forEach(([k,v])=>groups[roadKind(v)].push([k,v]));
+    const opt = arr => arr.sort((a,b)=>plainStreet(a[1]).localeCompare(plainStreet(b[1]),undefined,{numeric:true})).map(([k,v])=>`<option value="${esc(k)}">${esc(plainStreet(v))}</option>`).join("");
+    sel.innerHTML = `<option value="">All streets</option>` +
+      [["interstate","Interstates"],["state","State routes"],["street","Streets"]].filter(([g])=>groups[g].length)
+        .map(([g,label])=>`<optgroup label="${label}">${opt(groups[g])}</optgroup>`).join("");
+    sel.value = streets.has(cur) ? cur : "";
+  }
+  fill($("#fType"), types, "All types");
+  $("#streetList").innerHTML = [...streets.values()].map(s=>`<option value="${esc(s)}">`).join("");
+  const allTypes = new Map(DEFAULT_TYPES.map(t=>[norm(t),t])); types.forEach((v,k)=>allTypes.set(k,v));
+  $("#typeList").innerHTML = [...allTypes.values()].map(s=>`<option value="${esc(s)}">`).join("");
+}
+
+/* ---------- columns ---------- */
+const dash = '<span style="color:var(--muted)">—</span>';
+const fmtDate = v => { if(!v) return ""; const d = new Date(v); return isNaN(d) ? "" : d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}); };
+const COLUMNS = [
+  {key:"name",  label:"Device", on:true,  cell:(d,hl)=>`<td data-l="Device"><strong>${hl(d.name,"name")}</strong></td>`},
+  {key:"type",  label:"Type",        on:true,  cell:(d,hl)=>`<td data-l="Type"><span class="type">${hl(d.type,"type")}</span></td>`},
+  {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(d.ip)}" title="Click to copy">${hl(d.ip,"ip")}</span>${(()=>{ const twin = devices.find(x=>x.ip===d.ip && x.id!==d.id);
+    return twin ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="Also used by ${esc(twin.name)} at ${esc(plainStreet(twin.street1))} & ${esc(plainStreet(twin.street2))}">⚠ duplicate IP — fix needed</small>` : ""; })()}${(()=>{ const tp=typePool(d.type); return tp?.range && !inRange(d.ip,tp.range) ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="${esc(d.type)} IPs normally come from ${esc(tp.name)} (${esc(tp.range.text)})">outside ${esc(tp.name)} pool</small>` : ""; })()}</td>`},
+  {key:"pool",  label:"IP pool",     on:false, cell:d=>{ const tp=typePool(d.type); return `<td data-l="Pool">${tp?esc(tp.name):dash}</td>`; }},
+  {key:"mac",   label:"MAC",         on:true,  cell:(d,hl)=>`<td class="mac" data-l="MAC">${d.mac?hl(d.mac,"mac"):dash}</td>`},
+  {key:"notes", label:"Notes",       on:true,  cell:(d,hl)=>`<td class="notes" data-l="Notes">${d.notes?hl(d.notes,"notes"):""}</td>`},
+  {key:"created", label:"Added",     on:false, cell:d=>`<td data-l="Added" style="white-space:nowrap">${fmtDate(d.created)||dash}</td>`},
+  {key:"updated", label:"Last updated", on:false, cell:d=>`<td data-l="Updated" style="white-space:nowrap">${fmtDate(d.updated)||dash}</td>`},
+];
+const COLS_KEY = "traffic-ip-columns";
+let visibleCols = new Set(COLUMNS.filter(c=>c.on).map(c=>c.key));
+try{ const saved = JSON.parse(localStorage.getItem(COLS_KEY)||"null"); if(Array.isArray(saved) && saved.length) visibleCols = new Set(saved.filter(k=>COLUMNS.some(c=>c.key===k))); }catch{}
+const shownCols = () => COLUMNS.filter(c=>visibleCols.has(c.key));
+function saveCols(){ try{ localStorage.setItem(COLS_KEY, JSON.stringify([...visibleCols])); }catch{} }
+function renderColMenu(){
+  $("#colMenu").innerHTML = COLUMNS.map(c=>`<label><input type="checkbox" value="${c.key}" ${visibleCols.has(c.key)?"checked":""} ${visibleCols.size===1&&visibleCols.has(c.key)?"disabled title='Keep at least one column'":""}> ${c.label}</label>`).join("")
+    + `<div class="colfoot"><button type="button" class="btn ghost" id="colAll">Show all</button><button type="button" class="btn ghost" id="colReset">Reset</button></div>`;
+}
+
+function render(){
+  const groups = filtered();
+  const hlTerms = getTerms(), fld = $("#fField").value;
+  const hl = (text,f) => (!fld || fld===f) ? highlight(text,hlTerms) : esc(text);
+  const shownDev = groups.reduce((n,g)=>n+g.devices.length,0);
+  const filt = isFiltering();
+  $("#summary").textContent = filt
+    ? `Showing ${shownDev} of ${devices.length} devices · ${groups.length} of ${inters.size} intersections`
+    : `${devices.length} device${devices.length===1?"":"s"} at ${inters.size} intersection${inters.size===1?"":"s"}`;
+
+  if(!inters.size){
+    $("#list").innerHTML = `<div class="empty"><p style="font-size:17px;margin:0 0 6px;color:var(--ink)">No intersections yet</p><p style="margin:0 0 14px">Start by adding an intersection, then add the devices installed there.</p>${can("inters.add")?'<button class="btn primary" data-addinter="1">+ Add intersection</button>':''}</div>`;
+    return;
+  }
+  if(!groups.length){ $("#list").innerHTML = `<div class="empty">Nothing matches your search.</div>`; return; }
+
+  $("#list").innerHTML = groups.map(({inter:i, devices:devs})=>{
+    // while searching, results start collapsed; ones you open stay open until the search changes
+    const isCol = filt ? !searchOpen.has(i.key) : collapsed.has(i.key);
+    const k = esc(i.key);
+    return `<section class="group ${isCol?"collapsed":""}">
+      <div class="ghead" data-toggle="${k}">
+        <span class="caret">▼</span>
+        ${streetChip(i.street1,hl)}<span class="amp">&amp;</span>${streetChip(i.street2,hl)}
+        ${i.number?(()=>{ const dups = idHolders(i.number,[i.key]);
+          return dups.length ? `<span class="idbadge" style="color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)" title="Duplicate ID — also used by ${esc(dups.map(interLabel).join(", "))}">⚠ ${hl(i.number,"street")}</span>`
+                             : `<span class="idbadge">${hl(i.number,"street")}</span>`; })():""}
+        ${i.gps?`<a class="maplink" href="${mapUrl(i.gps)}" target="_blank" rel="noopener" title="${esc(gpsText(i.gps))} — open in Google Maps">📍 Map</a>`:""}
+        <span class="count">${filt && devs.length!==i.devices.length ? `${devs.length} of ${i.devices.length} devices match` : `${i.devices.length} device${i.devices.length===1?"":"s"}`}</span>
+        ${(can("devices.add")||can("inters.edit"))?`<span class="gact">
+          ${can("devices.add")?`<button class="btn ghost" data-addat="${k}" title="Add a device at this intersection">+ Device</button>`:""}
+          ${can("inters.edit")?`<button class="btn ghost" data-editinter="${k}">Edit</button>`:""}
+</span>`:""}
+      </div>
+      <div class="gbody">
+        ${i.notes?`<div class="inotes">${hl(i.notes,"street")}</div>`:""}
+        ${devs.length ? `<table>
+        <thead><tr>${shownCols().map(c=>`<th>${c.label}</th>`).join("")}<th></th></tr></thead>
+        <tbody>${devs.map(d=>`<tr>
+          ${shownCols().map(c=>c.cell(d,hl)).join("")}
+          <td class="act">${can("devices.edit")?`<button class="btn ghost" data-edit="${esc(d.id)}">Edit</button>`:""}</td>
+        </tr>`).join("")}</tbody></table>`
+        : `<div class="noDev">No devices at this intersection yet.${can("devices.add")?` <button class="btn ghost" data-addat="${k}">+ Add a device</button>`:""}</div>`}
+      </div>
+    </section>`;
+  }).join("");
+}
+
+function applyWriteMode(){
+  const show = (sel, ok) => $(sel)?.classList.toggle("hidden", !ok);
+  show("#addInterBtn", can("inters.add"));
+  show("#devListBtn", can("devlist.manage")); show("#devListForm", can("devlist.manage")); show("#manageDevBtn", can("devlist.manage"));
+  show("#poolsBtn", can("pools.manage")); show("#poolForm", can("pools.manage"));
+  show("#csvBtn", can("export.csv"));
+  show("#adminBtn", can("admin.menu"));
+  $("#roleChip").textContent = (roleCfg.roles[myRole()]?.label || "") + (shareWrite ? "" : " · view only");
+  $("#roleChip").classList.toggle("hidden", !rolesLoaded && !me.isOwner);
+}
+
+/* ---------- events ---------- */
+const searchOpen = new Set();      // results opened during the current search
+["#qi","#q","#fStreet","#fType","#fField"].forEach(s=>$(s).addEventListener("input",()=>{ searchOpen.clear(); render(); }));
+$("#qi").addEventListener("input", ()=>{
+  const raw = tidy($("#qi").value);
+  const parts = raw ? splitInterQuery(raw).map(x=>isHighway(x) ? fixStreet(x) : x) : [];
+  $("#qiInfo").textContent = parts.length===2 ? `Looking for ${plainStreet(parts[0])} & ${plainStreet(parts[1])} in either order, including every direction (NB/SB/EB/WB, N/S/E/W).`
+    : parts.length===1 ? `Showing every intersection on ${plainStreet(parts[0])}. Add “at” and a cross street to narrow it down.` : "";
+});
+$("#qi").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#q").focus(); } });
+/* Enter in the first box jumps to the second; Tab/Shift+Tab move between them naturally */
+$("#colBtn").onclick = e=>{ e.stopPropagation(); const m=$("#colMenu"); const open = m.classList.toggle("hidden")===false; if(open) renderColMenu(); $("#colBtn").setAttribute("aria-expanded", open); };
+$("#colMenu").addEventListener("click", e=>e.stopPropagation());
+$("#colMenu").addEventListener("change", e=>{
+  const k = e.target.value; e.target.checked ? visibleCols.add(k) : visibleCols.delete(k);
+  saveCols(); renderColMenu(); render();
+});
+$("#colMenu").addEventListener("click", e=>{
+  if(e.target.id==="colAll") visibleCols = new Set(COLUMNS.map(c=>c.key));
+  else if(e.target.id==="colReset") visibleCols = new Set(COLUMNS.filter(c=>c.on).map(c=>c.key));
+  else return;
+  saveCols(); renderColMenu(); render();
+});
+document.addEventListener("click", ()=>{ $("#colMenu").classList.add("hidden"); $("#colBtn").setAttribute("aria-expanded", false); });
+$("#clearBtn").onclick = ()=>{ searchOpen.clear(); ["#qi","#q","#fStreet","#fType","#fField"].forEach(s=>$(s).value=""); $("#qiInfo").textContent=""; render(); };
+$("#expandAll").onclick = ()=>{ if(isFiltering()) inters.forEach(i=>searchOpen.add(i.key)); else collapsed.clear(); render(); };
+$("#collapseAll").onclick = ()=>{ if(isFiltering()) searchOpen.clear(); else inters.forEach(i=>collapsed.add(i.key)); render(); };
+$("#addInterBtn").onclick = ()=>openInter();
+
+$("#list").addEventListener("click", e=>{
+  if(e.target.closest("a.maplink")) return;   // let the map link open without toggling the card
+  const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-toggle]");
+  if(!t) return;
+  const ds = t.dataset;
+  if(ds.edit) return openEdit(devices.find(d=>d.id===ds.edit));
+  if(ds.addat) return openEdit(null, ds.addat);
+  if(ds.editinter) return openInter(inters.get(ds.editinter));
+  if(ds.addinter) return openInter();
+  if(ds.copy){ navigator.clipboard?.writeText(ds.copy).then(()=>toast("Copied "+ds.copy)).catch(()=>{}); return; }
+  if(ds.toggle){
+    const k=ds.toggle, set = isFiltering() ? searchOpen : collapsed;
+    set.has(k)?set.delete(k):set.add(k);
+    t.parentElement.classList.toggle("collapsed");
+  }
+});
+
+$("#csvBtn").onclick = ()=>{
+  const q = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  const rows = ["Street 1,Street 2,Intersection ID,GPS,Device,Type,IP address,IP pool,MAC,Device notes"];
+  let n=0;
+  filtered().forEach(({inter:i,devices:devs})=>{
+    if(!devs.length){ rows.push([plainStreet(i.street1),plainStreet(i.street2),i.number,gpsText(i.gps),"","","","","",""].map(q).join(",")); return; }
+    devs.forEach(d=>{ n++; rows.push([plainStreet(i.street1),plainStreet(i.street2),i.number,gpsText(i.gps),d.name,d.type,d.ip,typePool(d.type)?.name||"",d.mac,d.notes].map(q).join(",")); });
+  });
+  navigator.clipboard?.writeText(rows.join("\n")).then(()=>toast(`Copied ${n} devices as CSV — paste into Excel or Sheets`)).catch(()=>toast("Clipboard not available here"));
+};
+
+/* ---------- intersection add / edit ---------- */
+const iform = $("#interForm");
+/* GPS: "45.5231, -122.6765", "45.5231 -122.6765", "45.5231 N 122.6765 W", "45.5231°N, 122.6765°W" → {lat, lon} | null | {error} */
+function parseGps(raw){
+  let t = String(raw||"").trim();
+  if(!t) return null;
+  if(/^https?:\/\/|maps\.|goo\.gl/i.test(t)){
+    // Google Maps links: exact pin (!3d…!4d…), q=/query=/ll=, or the map centre (@lat,lon)
+    let u = t; try{ u = decodeURIComponent(t); }catch{}
+    const pin = u.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    const q   = u.match(/[?&](?:q|query|ll|destination)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+    const at  = u.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    const m = pin || q || at;
+    if(!m) return {error: /goo\.gl|maps\.app/i.test(t) ? "Short share links can't be read — right-click the spot on the map and copy the coordinates instead." : "No coordinates found in that link."};
+    t = `${m[1]}, ${m[2]}`;
+  }
+  const m = t.replace(/°/g," ").match(/^([+-]?\d+(?:\.\d+)?)\s*([NS])?\s*[,;\s]\s*([+-]?\d+(?:\.\d+)?)\s*([EW])?$/i);
+  if(!m) return {error:"Use latitude, longitude — e.g. 45.5231, -122.6765"};
+  let lat = parseFloat(m[1]), lon = parseFloat(m[3]);
+  if(m[2] && /s/i.test(m[2])) lat = -Math.abs(lat);
+  if(m[4] && /w/i.test(m[4])) lon = -Math.abs(lon);
+  if(Math.abs(lat)>90) return {error:"Latitude must be between -90 and 90."};
+  if(Math.abs(lon)>180) return {error:"Longitude must be between -180 and 180."};
+  return {lat:+lat.toFixed(6), lon:+lon.toFixed(6)};
+}
+const gpsText = g => g ? `${g.lat}, ${g.lon}` : "";
+const mapUrl = g => `https://www.google.com/maps?q=${g.lat},${g.lon}`;
+function showGpsInfo(){
+  const g = parseGps(iform.elements.gps.value), el = $("#gpsInfo");
+  el.style.color = g?.error ? "var(--danger)" : "";
+  el.textContent = !g ? "" : g.error ? g.error : `${Math.abs(g.lat)}° ${g.lat>=0?"N":"S"}, ${Math.abs(g.lon)}° ${g.lon>=0?"E":"W"}`;
+}
+iform.elements.gps.addEventListener("input", showGpsInfo);
+/* a pasted map link becomes plain "lat, lon" */
+iform.elements.gps.addEventListener("change", ()=>{ const g = parseGps(iform.elements.gps.value); if(g && !g.error){ iform.elements.gps.value = gpsText(g); showGpsInfo(); } });
+/* "Pick on map": open Google Maps at the saved point, or search the two streets */
+$("#pickMap").addEventListener("click", ()=>{
+  const g = parseGps(iform.elements.gps.value);
+  const s1 = plainStreet(joinDir(iform.elements.dir1.value, iform.elements.street1.value)), s2 = plainStreet(joinDir(iform.elements.dir2.value, iform.elements.street2.value));
+  $("#pickMap").href = g && !g.error ? `https://www.google.com/maps/search/?api=1&query=${g.lat},${g.lon}`
+    : (s1 && s2) ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s1+" & "+s2)}`
+    : "https://www.google.com/maps";
+  $("#pickHelp").classList.remove("hidden");
+  setTimeout(()=>iform.elements.gps.focus(), 50);
+});
+
+/* intersection IDs compare without capitals, spaces or dashes: "INT-1042" = "int 1042" */
+const idKey = v => String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const idHolders = (num, exceptKeys=[]) => !idKey(num) ? [] : [...inters.values()].filter(i=>!exceptKeys.includes(i.key) && idKey(i.number)===idKey(num));
+function showNumWarn(){
+  const num = tidy(iform.elements.number.value), others = idHolders(num, [editingInterKey].filter(Boolean));
+  $("#numWarn").textContent = others.length ? `⚠ ID ${num} is already used by ${others.map(interLabel).join(", ")}.` : "";
+}
+iform.elements.number.addEventListener("input", e=>{
+  // intersection IDs are always uppercase; keep the cursor where it was
+  const el = e.target, pos = el.selectionStart, up = el.value.toUpperCase();
+  if(up!==el.value){ el.value = up; try{ el.setSelectionRange(pos,pos); }catch{} }
+  delete $("#ierr").dataset.numOk; showNumWarn();
+});
+function openInter(inter){
+  if(!(inter ? can("inters.edit") : can("inters.add"))) return;
+  editingInterKey = inter?.key || null;
+  $("#interTitle").textContent = inter ? "Edit intersection" : "Add intersection";
+  $("#delInterBtn").classList.toggle("hidden", !(inter && can("inters.remove")));
+  ["number","notes"].forEach(f=>iform.elements[f].value = inter?.[f]||"");
+  iform.elements.gps.value = gpsText(inter?.gps);
+  [["street1","dir1"],["street2","dir2"]].forEach(([f,d])=>{
+    const sp = splitDir(inter?.[f]||"");
+    iform.elements[f].value = sp.name; iform.elements[d].value = sp.dir;
+    syncDirOptions(iform.elements[d], sp.name);
+  });
+  $("#ierr").textContent=""; delete $("#ierr").dataset.numOk; $("#numWarn").textContent="";
+  showNumWarn(); showGpsInfo(); $("#pickHelp").classList.add("hidden");
+  $("#interScrim").classList.add("open");
+  setTimeout(()=>iform.elements.street1.focus(),30);
+}
+const closeInter = ()=>{ $("#interScrim").classList.remove("open"); editingInterKey=null; };
+$("#cancelInter").onclick = closeInter;
+
+/* checks a range against the other pools; returns an error message or "" */
+function rangeConflict(r, ownPoolId){
+  if(!r) return "";
+  const p = [...pools.values()].find(p=>p.id!==ownPoolId && p.range && r.s<=p.range.e && p.range.s<=r.e);
+  return p ? `That range overlaps the ${p.name} pool (${p.range.text}).` : "";
+}
+
+async function saveInterDoc(v, docId){
+  const key = interKey(v.street1,v.street2);
+  await db.collection("intersections").doc(docId || interDocId(key)).set({street1:v.street1, street2:v.street2, number:v.number||"", notes:v.notes||"", ...(v.gps ? {lat:v.gps.lat, lon:v.gps.lon} : {}), updated:new Date().toISOString()});
+  return key;
+}
+
+iform.addEventListener("submit", async e=>{
+  e.preventDefault();
+  const v = {street1:joinDir(iform.elements.dir1.value, iform.elements.street1.value), street2:joinDir(iform.elements.dir2.value, iform.elements.street2.value), number:tidy(iform.elements.number.value).toUpperCase(), notes:String(iform.elements.notes.value||"").trim()};
+  const err = $("#ierr");
+  if(!v.street1||!v.street2) return err.textContent="Enter both streets of the intersection.";
+  if(norm(v.street1)===norm(v.street2)) return err.textContent="The two streets must be different.";
+  const gps = parseGps(iform.elements.gps.value);
+  if(gps?.error) return err.textContent = `GPS coordinates: ${gps.error}`;
+  v.gps = gps;
+  const newKey = interKey(v.street1,v.street2);
+  const old = editingInterKey ? inters.get(editingInterKey) : null;
+  const clash = inters.get(newKey);
+  // an intersection known only through its devices may be "added" to give it an ID/notes
+  if(clash && clash!==old && (old || clash.docId)) return err.textContent = `${interLabel(clash)} is already in the inventory.`;
+  if(v.number){
+    const dupNum = idHolders(v.number, [old?.key, newKey].filter(Boolean));
+    const unchanged = old && idKey(old.number)===idKey(v.number);
+    if(dupNum.length && !unchanged && err.dataset.numOk!==idKey(v.number)){
+      err.dataset.numOk = idKey(v.number);
+      return err.textContent = `Warning: ID ${v.number} is already used by ${dupNum.map(interLabel).join(", ")}. Press Save again to use it anyway, or change the ID.`;
+    }
+  }
+  if(!db) return err.textContent="Saving isn't available in this view.";
+  const btn=$("#saveInter"); btn.disabled=true; btn.textContent="Saving…";
+  try{
+    await saveInterDoc(v, old && old.key===newKey && old.docId ? old.docId : null);   // edits update the same record
+    if(old && old.key!==newKey){
+      // rename: move devices to the new street names, then drop the old record
+      for(const d of old.devices){
+        const {id, ...rest} = d;
+        await db.collection("devices").doc(id).set({...rest, street1:v.street1, street2:v.street2, updated:new Date().toISOString()});
+      }
+      if(old.docId && old.docId!==interDocId(newKey)) await db.collection("intersections").doc(old.docId).delete();
+      if(collapsed.delete(old.key)) collapsed.add(newKey);
+    } else if(old && (old.street1!==v.street1 || old.street2!==v.street2)){
+      // same intersection, spelling/capitalisation changed: keep devices in step
+      for(const d of old.devices){
+        const {id, ...rest} = d;
+        await db.collection("devices").doc(id).set({...rest, street1:v.street1, street2:v.street2});
+      }
+    }
+    toast(old ? "Intersection updated" : "Intersection added");
+    closeInter();
+  }catch(ex){ err.textContent = writeError(ex); }
+  finally{ btn.disabled=false; btn.textContent="Save intersection"; }
+});
+
+/* ---------- device add / edit ---------- */
+const form = $("#editForm");
+function fillInterSelect(selectedKey){
+  const sel = $("#interSel");
+  sel.innerHTML = `<option value="">Choose an intersection…</option>` +
+    sortedInters().map(i=>`<option value="${esc(i.key)}">${esc(interLabel(i))}${i.number?" ("+esc(i.number)+")":""}</option>`).join("") +
+    (can("inters.add") ? `<option value="__new">+ New intersection…</option>` : "");
+  sel.value = selectedKey && inters.has(selectedKey) ? selectedKey : (inters.size ? "" : "__new");
+  toggleNewInter();
+}
+function toggleNewInter(){ document.querySelectorAll(".newInter").forEach(el=>el.classList.toggle("hidden", $("#interSel").value!=="__new")); }
+
+/* ---- automatic IP assignment ---- */
+let lastAutoIp = "";
+const skippedIps = new Set();     // IPs discarded while this form is open
+/* Device type dropdown: every known type, plus "+ New type…" to type one in */
+const curType = () => $("#typeSel").value==="__new" ? tidy($("#typeOther").value) : $("#typeSel").value;
+function knownTypes(){
+  const m = new Map();
+  [...DEFAULT_TYPES, ...devices.map(d=>d.type), ...[...pools.values()].flatMap(p=>p.types)].forEach(t=>{ if(t && !m.has(norm(t))) m.set(norm(t), t); });
+  return [...m.values()].sort((a,b)=>a.localeCompare(b));
+}
+function fillTypeSelect(value){
+  const sel = $("#typeSel"), types = knownTypes();
+  const match = value ? types.find(t=>norm(t)===norm(value)) : "";
+  sel.innerHTML = `<option value="">Choose a type…</option>` + types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join("") + `<option value="__new">+ New type…</option>`;
+  if(value && !match){ sel.value = "__new"; $("#typeOther").value = value; }
+  else { sel.value = match || ""; $("#typeOther").value = ""; }
+  $("#typeOther").classList.toggle("hidden", sel.value!=="__new");
+}
+$("#typeSel").addEventListener("change", ()=>{
+  $("#typeHint").textContent = "";
+  const isNew = $("#typeSel").value==="__new";
+  $("#typeOther").classList.toggle("hidden", !isNew);
+  if(isNew) setTimeout(()=>$("#typeOther").focus(),20);
+  autoFillIp();
+});
+$("#typeOther").addEventListener("input", autoFillIp);
+function deviceFormRange(){ return typePool(curType())?.range || null; }
+function updateIpHint(){
+  const type = curType(), pool = typePool(type), r = pool?.range, hint = $("#ipHint"), ip = tidy(form.elements.ip.value);
+  hint.style.color = "";
+  const taken = ip && devices.find(x=>x.ip===ip && x.id!==editingId);
+  if(taken){ hint.textContent = `Already used by ${taken.name} at ${plainStreet(taken.street1)} & ${plainStreet(taken.street2)} — choose another IP.`; hint.style.color="var(--danger)"; return; }
+  if(!type){ hint.textContent = "Pick a device type to get its next free IP."; return; }
+  if(!r){ hint.textContent = `No pool for ${type} — enter the IP, or link this type to a pool under Address pools.`; return; }
+  const used = usedInRange(r, editingId), size = rangeSize(r);
+  if(ip && !inRange(ip, r)){ hint.textContent = `Outside the ${pool.name} pool (${r.text}).`; hint.style.color="var(--danger)"; return; }
+  if(!nextFreeIp(r, editingId) && !ip){ hint.textContent = `${pool.name} pool is full (${used}/${size} used).`; hint.style.color="var(--danger)"; return; }
+  hint.textContent = (ip && ip===lastAutoIp ? "Next free IP · " : "") + `${pool.name} pool ${r.text} · ${used}/${size} used`;
+}
+function autoFillIp(){
+  const r = deviceFormRange(), cur = tidy(form.elements.ip.value);
+  if(r && (!cur || cur===lastAutoIp || !inRange(cur, r) || devices.some(d=>d.id!==editingId && d.ip===cur))){
+    const next = nextFreeIp(r, editingId, skippedIps) || "";
+    form.elements.ip.value = next; lastAutoIp = next;
+  } else if(!r && cur && cur===lastAutoIp){ form.elements.ip.value=""; lastAutoIp=""; }
+  updateIpHint();
+}
+$("#newIpBtn").onclick = ()=>{
+  const type = curType(), pool = typePool(type), r = pool?.range, hint = $("#ipHint");
+  if(!r){ updateIpHint(); hint.style.color="var(--danger)"; if(!type) hint.textContent="Pick a device type first."; return; }
+  const cur = tidy(form.elements.ip.value);
+  if(ipNum(cur)!==Infinity) skippedIps.add(ipNum(cur));
+  const next = nextFreeIp(r, editingId, skippedIps);
+  if(!next){
+    hint.textContent = `No other free IPs in the ${pool.name} pool.`; hint.style.color="var(--danger)";
+    return;
+  }
+  form.elements.ip.value = next; lastAutoIp = next;
+  delete $("#ferr").dataset.outsideOk; $("#ferr").textContent = "";
+  updateIpHint();
+  const gone = [...skippedIps].sort((a,b)=>a-b).map(numToIp);
+  hint.textContent += ` · discarded ${gone.slice(-3).join(", ")}${gone.length>3?` (+${gone.length-3} more)`:""}`;
+};
+$("#interSel").addEventListener("change", toggleNewInter);
+form.elements.ip.addEventListener("input", updateIpHint);
+
+function openEdit(dev, presetKey){
+  if(!(dev ? can("devices.edit") : can("devices.add"))) return;
+  editingId = dev?.id || null;
+  $("#editTitle").textContent = dev ? "Edit device" : "Add device";
+  $("#delDevBtn").classList.toggle("hidden", !(dev && can("devices.remove")));
+  $("#saveAddBtn").classList.toggle("hidden", !!dev);
+  ["street1","street2","ip","mac","notes"].forEach(f=>form.elements[f].value = (dev && !["street1","street2"].includes(f)) ? (dev[f]||"") : "");
+  fillTypeSelect(dev?.type || "");
+  $("#typeHint").textContent = "";
+  $("#newDevName").value = "";
+  fillDevSelect(dev?.name || "");
+  fillInterSelect(dev ? interKey(dev.street1,dev.street2) : presetKey);
+  $("#ferr").textContent=""; delete $("#ferr").dataset.outsideOk;
+  lastAutoIp = ""; skippedIps.clear();
+  if(dev) updateIpHint(); else autoFillIp();
+  $("#editScrim").classList.add("open");
+  setTimeout(()=>form.elements[$("#interSel").value && $("#interSel").value!=="__new" ? "name" : ($("#interSel").value==="__new"?"street1":"inter")].focus(),30);
+}
+function closeEdit(){ $("#editScrim").classList.remove("open"); editingId=null; }
+$("#cancelEdit").onclick = closeEdit;
+
+let addAnother = false;
+$("#saveAddBtn").onclick = ()=>{ addAnother = true; form.requestSubmit(); };
+const waitFor = (cond, ms=2500) => new Promise(res=>{ const t0=Date.now(); (function tick(){ if(cond() || Date.now()-t0>ms) return res(); setTimeout(tick,50); })(); });
+/* after "Save and Add Another": keep intersection + type, clear the rest, pull the next free IP */
+async function startAnother(savedIp, savedId, interKeyToKeep){
+  await waitFor(()=>inters.has(interKeyToKeep) && devices.some(x=>x.id===savedId));
+  const type = curType();
+  ["mac","notes","ip"].forEach(f=>form.elements[f].value="");
+  $("#newDevName").value = "";
+  fillDevSelect("");
+  fillInterSelect(interKeyToKeep);
+  fillTypeSelect(type); $("#typeHint").textContent = "";
+  lastAutoIp = ""; skippedIps.clear();
+  if(ipNum(savedIp)!==Infinity) skippedIps.add(ipNum(savedIp));   // never hand out the IP just used, even if the list hasn't caught up
+  autoFillIp(); skippedIps.clear();
+  const err = $("#ferr"); err.textContent = ""; delete err.dataset.outsideOk;
+  setTimeout(()=>$("#devSel").focus(), 30);
+}
+/* ---- save-time IP check ----
+   Everyone saving a device takes a short turn on one shared lock, then re-reads the saved devices
+   from the database (not this screen's copy), so two people can't claim the same IP at once. */
+const TAB_ID = "tab-" + Math.random().toString(36).slice(2);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+async function takeIpTurn(){
+  try{
+    const lock = db.doc("locks/ip-assign");
+    for(let i=0;i<25;i++){
+      const r = await lock.acquire({holder:TAB_ID, ttlMs:4000});
+      if(r?.acquired) return true;
+      await sleep(250 + Math.random()*250);
+    }
+  }catch{}
+  return false;   // carry on with the fresh check even without the turn
+}
+async function freshDevices(){
+  try{ const snap = await db.collection("devices").get(); return snap.docs.map(x=>({id:x.id, ...x.data()})); }
+  catch{ return devices; }
+}
+/* returns {ip, note} to save with, or {error} */
+async function confirmIp(d, range, wasAuto, editingId){
+  await takeIpTurn();
+  const all = await freshDevices();
+  const holder = all.find(x=>x.ip===d.ip && x.id!==editingId);
+  if(!holder) return {ip:d.ip};
+  if(wasAuto && range){
+    const used = new Set(all.filter(x=>x.id!==editingId).map(x=>ipNum(x.ip)));
+    for(let n=range.s; n<=range.e; n++) if(!used.has(n)) return {ip:numToIp(n), note:`${d.ip} was just taken by ${holder.name} — saved as ${numToIp(n)} instead.`};
+    return {error:`${d.ip} was just taken by ${holder.name}, and there are no other free IPs in the pool.`};
+  }
+  return {error:`${d.ip} was just saved for “${holder.name}” at ${plainStreet(holder.street1)} & ${plainStreet(holder.street2)} by someone else. Duplicate IPs aren't allowed — choose another IP (↻ New IP).`};
+}
+
+form.addEventListener("submit", async e=>{
+  e.preventDefault();
+  const wantAnother = addAnother; addAnother = false;
+  const err = $("#ferr");
+  const d = {};
+  ["name","ip","mac"].forEach(f=>d[f]=tidy(form.elements[f].value));
+  d.type = curType();
+  d.notes = String(form.elements.notes.value||"").trim();
+  const sel = $("#interSel").value;
+  let inter = null, newInter = null;
+  if(sel==="__new"){
+    const s1=fixStreet(form.elements.street1.value), s2=fixStreet(form.elements.street2.value);
+    if(!s1||!s2) return err.textContent="Enter both streets of the new intersection.";
+    if(norm(s1)===norm(s2)) return err.textContent="The two streets must be different.";
+    inter = inters.get(interKey(s1,s2));
+    if(!inter) newInter = {street1:s1, street2:s2};
+  } else if(sel){ inter = inters.get(sel); }
+  if(!inter && !newInter) return err.textContent="Choose the intersection for this device.";
+  if(!d.name || d.name==="__new") return err.textContent="Choose a device from the list, or add a new one.";
+  if(!d.type) return err.textContent="Choose a device type, or pick “+ New type…” to add one.";
+  const pool = typePool(d.type), range = pool?.range;
+  if(!d.ip && range && !nextFreeIp(range, editingId)) return err.textContent=`No free IPs left in the ${pool.name} pool (${range.text}). Widen the pool or enter an IP manually.`;
+  if(!validIp(d.ip)) return err.textContent="Enter a valid IP address (e.g. 10.20.1.15).";
+  if(range && !inRange(d.ip, range) && err.dataset.outsideOk!==d.ip){
+    err.dataset.outsideOk = d.ip;
+    return err.textContent = `${d.ip} is outside the ${pool.name} pool for ${d.type} (${range.text}). Press Save again to use it anyway.`;
+  }
+  if(!validMac(d.mac)) return err.textContent="MAC should look like 00:1A:2B:3C:4D:5E (or leave blank).";
+  d.mac = d.mac.toUpperCase();
+  const dup = devices.find(x=>x.ip===d.ip && x.id!==editingId);
+  if(dup) return err.textContent = `IP ${d.ip} is already used by “${dup.name}” at ${plainStreet(dup.street1)} & ${plainStreet(dup.street2)}. Duplicate IPs aren't allowed — choose another IP (↻ New IP).`;
+  const knownType = [...[...pools.values()].flatMap(p=>p.types), ...devices.map(x=>x.type), ...DEFAULT_TYPES].find(t=>norm(t)===norm(d.type));
+  if(knownType) d.type = knownType;
+  const place = inter || newInter;
+  d.street1 = place.street1; d.street2 = place.street2;
+
+  if(!db) return err.textContent="Saving isn't available in this view.";
+  const again = wantAnother && !editingId;
+  const btn = again ? $("#saveAddBtn") : $("#saveBtn"), label = btn.innerHTML;
+  $("#saveBtn").disabled = $("#saveAddBtn").disabled = true; btn.textContent="Saving…";
+  try{
+    const prevIp = editingId ? (devices.find(x=>x.id===editingId)?.ip || "") : "";
+    if(!editingId || prevIp!==d.ip){
+      btn.textContent = "Checking IP…";
+      const res = await confirmIp(d, range, d.ip===lastAutoIp, editingId);
+      if(res.error){
+        err.textContent = res.error;
+        return;
+      }
+      if(res.ip!==d.ip){ d.ip = res.ip; form.elements.ip.value = res.ip; lastAutoIp = res.ip; }
+      if(res.note) setTimeout(()=>toast(res.note), 1200);
+      btn.textContent = "Saving…";
+    }
+    if(newInter) await saveInterDoc(newInter);
+    const now = new Date().toISOString();
+    if(editingId){
+      const prev = devices.find(x=>x.id===editingId)||{};
+      await db.collection("devices").doc(editingId).set({...d, created: prev.created||now, updated: now});
+      toast("Device updated");
+      closeEdit();
+    } else {
+      const ref = db.collection("devices").doc();
+      await ref.set({...d, created: now, updated: now});
+      if(again){
+        toast(`${d.name} added — ready for the next one`);
+        await startAnother(d.ip, ref.id, interKey(d.street1, d.street2));
+      } else { toast("Device added"); closeEdit(); }
+    }
+  }catch(ex){ err.textContent = writeError(ex); }
+  finally{ $("#saveBtn").disabled = $("#saveAddBtn").disabled = false; btn.innerHTML = label; }
+});
+
+/* ---------- delete ---------- */
+let verifyWord = "";
+function openConfirm(title, html, btnText, fn, opts){
+  pendingDelete = fn;
+  $("#delTitle").textContent = title; $("#delText").innerHTML = html; $("#confirmDel").textContent = btnText;
+  verifyWord = opts?.typeToConfirm || "";
+  $("#verifyWrap").classList.toggle("hidden", !verifyWord);
+  $("#verifyLabel").innerHTML = verifyWord ? `Type <strong style="font-family:var(--mono)">${esc(verifyWord)}</strong> to confirm` : "";
+  $("#verifyInput").value = "";
+  $("#confirmDel").disabled = !!verifyWord;
+  $("#delScrim").classList.add("open");
+  if(verifyWord) setTimeout(()=>$("#verifyInput").focus(),30);
+}
+$("#verifyInput").addEventListener("input", ()=>{ $("#confirmDel").disabled = $("#verifyInput").value.trim().toUpperCase() !== verifyWord; });
+$("#verifyInput").addEventListener("keydown", e=>{ if(e.key==="Enter" && !$("#confirmDel").disabled){ e.preventDefault(); $("#confirmDel").click(); } });
+function confirmDeleteDevice(id){
+  const d = devices.find(x=>x.id===id); if(!d) return;
+  openConfirm("Remove device?", `Remove <strong>${esc(d.name)}</strong> (${esc(d.ip)}) from ${esc(plainStreet(d.street1))} &amp; ${esc(plainStreet(d.street2))}? This can't be undone.`, "Remove device",
+    async ()=>{ await db.collection("devices").doc(id).delete(); closeEdit(); toast("Device removed"); });
+}
+$("#delInterBtn").onclick = ()=>{ if(editingInterKey) confirmDeleteInter(editingInterKey); };
+$("#delDevBtn").onclick = ()=>{ if(editingId) confirmDeleteDevice(editingId); };
+function confirmDeleteInter(key){
+  const i = inters.get(key); if(!i) return;
+  const n = i.devices.length;
+  openConfirm("Remove intersection?",
+    `Remove <strong>${esc(interLabel(i))}</strong>${n?` and its <strong>${n} device${n===1?"":"s"}</strong>`:""}? This can't be undone.`,
+    n ? `Remove intersection & ${n} device${n===1?"":"s"}` : "Remove intersection",
+    async ()=>{
+      for(const d of i.devices) await db.collection("devices").doc(d.id).delete();
+      if(i.docId) await db.collection("intersections").doc(i.docId).delete();
+      closeInter(); toast("Intersection removed");
+    }, {typeToConfirm:"REMOVE"});
+}
+const closeConfirm = ()=>{ $("#delScrim").classList.remove("open"); pendingDelete=null; };
+$("#cancelDel").onclick = closeConfirm;
+$("#confirmDel").onclick = async ()=>{
+  if(!pendingDelete||!db||$("#confirmDel").disabled) return;
+  if(verifyWord && $("#verifyInput").value.trim().toUpperCase()!==verifyWord) return;
+  const b=$("#confirmDel"); b.disabled=true;
+  try{ await pendingDelete(); }
+  catch(ex){ toast(ex?.code==="invalid_argument" ? "You have view-only access." : "Couldn't make that change right now."); }
+  finally{ b.disabled=false; verifyWord=""; closeConfirm(); }
+};
+
+document.addEventListener("keydown", e=>{
+  if(e.key==="Escape"){ if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#devListScrim").classList.contains("open")) return closeDevList(); if($("#adminScrim").classList.contains("open")) return closeAdmin(); closeEdit(); closeInter(); closePools(); }
+  if(e.key==="/" && !["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)){ e.preventDefault(); $("#qi").focus(); }
+});
+["#editScrim","#interScrim","#delScrim","#poolScrim","#devListScrim","#adminScrim"].forEach(s=>$(s).addEventListener("mousedown",e=>{ if(e.target===$(s)) $(s).classList.remove("open"); }));
+
+/* ---------- device list (dropdown choices) ---------- */
+const sortedOpts = () => [...deviceOpts].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+const findOpt = name => deviceOpts.find(o=>norm(o.name)===norm(name));
+function fillDevSelect(value){
+  const sel = $("#devSel"), opts = sortedOpts();
+  const extra = value && value!=="__new" && !findOpt(value) ? `<option value="${esc(value)}">${esc(value)} (not in list)</option>` : "";
+  sel.innerHTML = `<option value="">${opts.length ? "Choose a device…" : "No devices in the list yet"}</option>` + extra +
+    opts.map(o=>`<option value="${esc(o.name)}">${esc(o.name)}</option>`).join("") + (can("devlist.manage") ? `<option value="__new">+ Add new device…</option>` : "");
+  const match = value && (findOpt(value)?.name || value);
+  sel.value = [...sel.options].some(o=>o.value===match) ? match : "";
+  $("#newDevRow").classList.toggle("hidden", sel.value!=="__new");
+}
+/* the type used most often for this device before (ties → most recent); "" if never used */
+function guessType(name){
+  const past = devices.filter(d=>norm(d.name)===norm(name) && d.type && d.id!==editingId);
+  if(!past.length) return "";
+  const tally = new Map();
+  past.forEach(d=>{
+    const k = norm(d.type), t = tally.get(k) || {type:d.type, n:0, last:""};
+    t.n++; const when = d.updated || d.created || ""; if(when > t.last) t.last = when;
+    tally.set(k, t);
+  });
+  return [...tally.values()].sort((a,b)=> b.n-a.n || (b.last > a.last ? 1 : b.last < a.last ? -1 : 0))[0].type;
+}
+$("#devSel").addEventListener("change", ()=>{
+  const v = $("#devSel").value, isNew = v==="__new";
+  $("#newDevRow").classList.toggle("hidden", !isNew);
+  if(isNew) setTimeout(()=>$("#newDevName").focus(),20);
+  if(!v || isNew) return;
+  const guess = guessType(v);
+  if(guess && norm(guess)!==norm(curType())){
+    fillTypeSelect(guess);
+    autoFillIp();
+  }
+  $("#typeHint").textContent = guess ? `Set from earlier ${plainStreet(v)} entries — change it if needed.` : "";
+});
+async function addDeviceOption(name){
+  name = tidy(name);
+  if(!name) throw {msg:"Type a device to add."};
+  const existing = findOpt(name);
+  if(existing) return existing.name;
+  if(!db) throw {msg:"Saving isn't available in this view."};
+  const ref = db.collection("deviceOptions").doc();
+  await ref.set({name, created:new Date().toISOString()});
+  if(!deviceOpts.some(o=>o.id===ref.id)) deviceOpts.push({id:ref.id, name});
+  return name;
+}
+async function addFromForm(){
+  const err = $("#ferr");
+  try{
+    const name = await addDeviceOption($("#newDevName").value);
+    $("#newDevName").value = ""; fillDevSelect(name); err.textContent = "";
+    toast(`${name} is in the list`);
+  }catch(ex){ err.textContent = ex?.msg || writeError(ex); }
+}
+$("#addDevOpt").onclick = addFromForm;
+$("#newDevName").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); addFromForm(); } });
+
+let editingOptId = null;
+function renderDevList(){
+  const typing = $("#devList .renameInput"), typed = typing ? typing.value : null, hadFocus = typing && document.activeElement===typing;
+  const counts = new Map(); devices.forEach(d=>counts.set(norm(d.name),(counts.get(norm(d.name))||0)+1));
+  const opts = sortedOpts();
+  $("#devList").innerHTML = opts.length ? opts.map(o=>{ const n = counts.get(norm(o.name))||0;
+    if(o.id===editingOptId) return `<div class="dlrow"><input class="renameInput" value="${esc(o.name)}" aria-label="New name for ${esc(o.name)}" autocomplete="off" style="flex:1"><button class="btn primary" data-saveopt="${esc(o.id)}">Save</button><button class="btn ghost" data-cancelopt="1">Cancel</button></div>`;
+    return `<div class="dlrow"><span class="nm">${esc(o.name)}</span><small>${n ? `${n} in use` : "not used"}</small>${can("devlist.manage")?`<button class="btn ghost" data-editopt="${esc(o.id)}">Edit</button><button class="btn ghost del" data-delopt="${esc(o.id)}">Remove</button>`:""}</div>`; }).join("")
+    : `<div class="noDev" style="padding:4px">The list is empty. Add devices below.</div>`;
+  const missing = [...new Map(devices.filter(d=>d.name && !findOpt(d.name)).map(d=>[norm(d.name), d.name])).values()];
+  $("#devListMissing").innerHTML = missing.length && can("devlist.manage")
+    ? `<div class="notice" style="display:flex;align-items:center;gap:10px">${missing.length} device${missing.length===1?"":"s"} in use ${missing.length===1?"isn't":"aren't"} in the list.<span style="flex:1"></span><button class="btn" id="addMissing">Add ${missing.length===1?"it":"them"}</button></div>` : "";
+  $("#devListMissing").dataset.names = JSON.stringify(missing);
+  const again = $("#devList .renameInput");
+  if(again && typed!==null){ again.value = typed; if(hadFocus) again.focus(); }
+}
+function openDevList(){ editingOptId = null; $("#dlerr").textContent=""; renderDevList(); $("#devListScrim").classList.add("open"); setTimeout(()=>$("#devListNew").focus(),30); }
+function closeDevList(){
+  $("#devListScrim").classList.remove("open");
+  if($("#editScrim").classList.contains("open")) fillDevSelect($("#devSel").value);
+}
+$("#devListBtn").onclick = openDevList;
+$("#manageDevBtn").onclick = openDevList;
+$("#closeDevList").onclick = closeDevList;
+$("#devListForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const v = $("#devListNew").value, err = $("#dlerr");
+  if(findOpt(v)){ err.textContent = `${tidy(v)} is already in the list.`; return; }
+  try{ await addDeviceOption(v); $("#devListNew").value=""; err.textContent=""; renderDevList(); }
+  catch(ex){ err.textContent = ex?.msg || writeError(ex); }
+});
+$("#devListMissing").addEventListener("click", async e=>{
+  if(e.target.id!=="addMissing") return;
+  e.target.disabled = true;
+  try{ for(const n of JSON.parse($("#devListMissing").dataset.names||"[]")) await addDeviceOption(n); toast("Added to the device list"); renderDevList(); }
+  catch(ex){ $("#dlerr").textContent = ex?.msg || writeError(ex); }
+});
+/* rename an entry in the Device list; devices using the old name follow it */
+async function renameOption(id){
+  const o = deviceOpts.find(x=>x.id===id); if(!o) return;
+  const input = $("#devList .renameInput"), err = $("#dlerr");
+  const name = tidy(input?.value);
+  if(!name){ err.textContent = "The name can't be empty."; return; }
+  if(name===o.name){ editingOptId = null; renderDevList(); return; }
+  const clash = deviceOpts.find(x=>x.id!==id && norm(x.name)===norm(name));
+  if(clash){ err.textContent = `${clash.name} is already in the list.`; return; }
+  const users = devices.filter(d=>norm(d.name)===norm(o.name));
+  const oldName = o.name, formHadOld = $("#editScrim").classList.contains("open") && norm($("#devSel").value)===norm(oldName);
+  try{
+    await db.collection("deviceOptions").doc(id).set({name, created:o.created||new Date().toISOString(), updated:new Date().toISOString()});
+    o.name = name;
+    for(const d of users){ const {id:did, ...rest} = d; await db.collection("devices").doc(did).set({...rest, name, updated:new Date().toISOString()}); }
+    editingOptId = null; err.textContent = ""; renderDevList();
+    if($("#editScrim").classList.contains("open")) fillDevSelect(formHadOld ? name : $("#devSel").value);
+    toast(users.length ? `Renamed to ${name} — ${users.length} device${users.length===1?"":"s"} updated` : `Renamed to ${name}`);
+  }catch(ex){ err.textContent = writeError(ex); }
+}
+$("#devList").addEventListener("keydown", e=>{
+  if(!e.target.classList.contains("renameInput")) return;
+  if(e.key==="Enter"){ e.preventDefault(); renameOption(editingOptId); }
+  if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); editingOptId = null; $("#dlerr").textContent=""; renderDevList(); }
+});
+$("#devList").addEventListener("click", e=>{
+  const ed = e.target.closest("[data-editopt],[data-saveopt],[data-cancelopt]");
+  if(ed){
+    if(ed.dataset.editopt){ editingOptId = ed.dataset.editopt; $("#dlerr").textContent=""; renderDevList(); const i=$("#devList .renameInput"); i.focus(); i.select(); }
+    else if(ed.dataset.saveopt) renameOption(ed.dataset.saveopt);
+    else { editingOptId = null; $("#dlerr").textContent=""; renderDevList(); }
+    return;
+  }
+  const id = e.target.closest("[data-delopt]")?.dataset.delopt; if(!id) return;
+  const o = deviceOpts.find(x=>x.id===id); if(!o) return;
+  const n = devices.filter(d=>norm(d.name)===norm(o.name)).length;
+  const doDelete = async ()=>{ await db.collection("deviceOptions").doc(id).delete(); deviceOpts = deviceOpts.filter(x=>x.id!==id); renderDevList(); toast(`${o.name} removed from the list`); };
+  if(!n){ doDelete().catch(ex=>$("#dlerr").textContent = writeError(ex)); return; }
+  openConfirm("Remove from the list?",
+    `Remove <strong>${esc(o.name)}</strong> from the Device dropdown? ${n} device${n===1?" uses":"s use"} it and will keep it, but it won't be offered for new devices.`,
+    "Remove from list", doDelete);
+});
+
+/* ---------- admin menu ---------- */
+async function saveRoleCfg(patch){
+  const cur = {roles:Object.fromEntries(ROLE_ORDER.filter(r=>r!=="admin").map(r=>[r,{perms:roleCfg.roles[r].perms}])), defaultRole:roleCfg.defaultRole, ownerId:roleCfg.ownerId||null};
+  await db.doc("admin/config").set({...cur, ...patch, updated:new Date().toISOString()});
+}
+const roleOptions = sel => ROLE_ORDER.map(r=>`<option value="${r}" ${r===sel?"selected":""}>${esc(roleCfg.roles[r].label)}</option>`).join("");
+const canManage = () => me.isOwner || me.canEdit || (window.__STANDALONE && myRole()==="admin");
+let adminTab = "people";
+function setTab(t){
+  adminTab = t;
+  document.querySelectorAll("#adminScrim .tab").forEach(b=>b.classList.toggle("active", b.dataset.tab===t));
+  document.querySelectorAll("#adminScrim .tabpane").forEach(p=>p.classList.toggle("hidden", p.dataset.pane!==t));
+}
+async function renderAdmin(){
+  const ro = !canManage();
+  if(window.__STANDALONE){ renderAccounts(); }
+  $("#adminRO").classList.toggle("hidden", !ro);
+  $("#adminSearch").disabled = ro;
+  // people (claude.ai sharing mode; standalone uses accounts above)
+  if(!window.__STANDALONE){
+  const ids = [...members.keys()];
+  if(roleCfg.ownerId && !ids.includes(roleCfg.ownerId)) ids.unshift(roleCfg.ownerId);
+  const ps = userNS ? await userNS.profiles(ids) : {};
+  const row = (id, roleHtml, extra="") => {
+    const pr = ps[id] || {name:"", avatarUrl:"", email:null};
+    return `<div class="dlrow" data-person="${esc(id)}">
+      ${pr.avatarUrl?`<img class="av" alt="" src="${esc(pr.avatarUrl)}">`:""}
+      <span class="who"><span class="pname"></span><small class="pmail"></small></span>${roleHtml}${extra}</div>`;
+  };
+  let html = "";
+  if(roleCfg.ownerId) html += row(roleCfg.ownerId, `<span class="type">Owner · Admin</span>`);
+  const sorted = [...members.entries()].filter(([id])=>id!==roleCfg.ownerId)
+    .sort((a,b)=>((ps[a[0]]?.name||"~").localeCompare(ps[b[0]]?.name||"~")));
+  sorted.forEach(([id,m])=>{
+    html += row(id, `<select class="memberRole" data-id="${esc(id)}" style="width:auto" ${ro?"disabled":""}>${roleOptions(m.role)}</select>`,
+      ro ? "" : `<button class="btn ghost del" data-unlist="${esc(id)}" title="Remove from this list — they fall back to the 'Everyone else' role">Remove</button>`);
+  });
+  if(!sorted.length) html += `<div class="noDev" style="padding:6px 4px">No one added yet. Search above to give someone a role.</div>`;
+  $("#peopleList").innerHTML = html;
+  // names/emails are other people's input: set as text
+  document.querySelectorAll("#peopleList [data-person]").forEach(el=>{
+    const pr = ps[el.dataset.person] || {};
+    el.querySelector(".pname").textContent = (pr.name || "Someone") + (pr.isMe ? " (you)" : "") + (pr.guest ? " · guest" : "");
+    el.querySelector(".pmail").textContent = pr.email || "";
+  });
+  $("#defaultRole").innerHTML = roleOptions(roleCfg.defaultRole); $("#defaultRole").disabled = ro;
+  }
+  // role matrix
+  $("#roleMatrix").innerHTML = `<thead><tr><th>Privilege</th>${ROLE_ORDER.map(r=>`<th>${esc(roleCfg.roles[r].label)}</th>`).join("")}</tr></thead><tbody>` +
+    PERMS.map(([k,label])=>`<tr><td>${esc(label)}</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" data-role="${r}" data-perm="${k}" ${roleCfg.roles[r].perms[k]?"checked":""} ${(r==="admin"||ro)?"disabled":""}></td>`).join("")}</tr>`).join("") +
+    `<tr><td>Open this Admin menu</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" ${r==="admin"?"checked":""} disabled></td>`).join("")}</tr></tbody>`;
+  // access explainer
+  if(window.__STANDALONE){
+    $("#accessInfo").innerHTML = `
+      <p style="margin:0 0 10px">Everyone signs in with their own account. An account's <b>role</b> decides what they can do, and the server checks it on every change — so roles can't be bypassed.</p>
+      <ul style="margin:0 0 12px;padding-left:20px;line-height:1.6">
+        <li><b>Admin</b> — everything, including this menu and accounts.</li>
+        <li><b>Technician</b> and <b>Viewer</b> — what's ticked for them under <b>Role privileges</b>.</li>
+        <li><b>Disabled</b> accounts can't sign in.</li>
+      </ul>
+      <div class="notice">You: <b>${esc(me.name || me.username)}</b> · Role: <b>${esc(roleCfg.roles[myRole()].label)}</b></div>
+      ${canManage() ? `<p style="margin:12px 0 6px"><b>Backups</b> — the server keeps a copy of the database each time it starts. You can also download everything now:</p>
+      <a class="btn" href="/api/backup" download style="text-decoration:none;display:inline-block">Download backup (.json)</a>` : ""}`;
+    return;
+  }
+  const level = me.isOwner ? "Owner" : me.canEdit ? "Editor" : shareWrite ? "Contributor" : "Viewer / Commenter";
+  $("#accessInfo").innerHTML = `
+    <p style="margin:0 0 10px">Two things decide what someone can do:</p>
+    <ol style="margin:0 0 12px;padding-left:20px;line-height:1.6">
+      <li><b>claude.ai sharing</b> (the <b>Share</b> button on this app's page) decides who can open the app at all, and whether they can save anything:
+        <ul style="margin:4px 0;padding-left:18px">
+          <li><b>Viewer / Commenter</b> — can look and search only, whatever their role here.</li>
+          <li><b>Contributor</b> — can save changes, limited by their role here.</li>
+          <li><b>Editor</b> — same as Contributor, and can also change roles in this Admin menu.</li>
+        </ul></li>
+      <li><b>Their role here</b> (People &amp; roles tab) decides which changes they can make.</li>
+    </ol>
+    <p style="margin:0 0 6px">People and their sharing level are managed on claude.ai — this page can't add people or change their sharing.</p>
+    <div class="notice" style="margin-top:10px">Your sharing level: <b>${level}</b> · Your role: <b>${esc(roleCfg.roles[myRole()].label)}</b></div>
+    <p class="hint" style="margin:8px 0 0">Roles control the buttons and forms in this app. A Contributor or Editor with technical skills could still change data outside the app's screens, so only share as Contributor or Editor with people you trust to edit.</p>`;
+}
+function openAdmin(){ $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+function closeAdmin(){ $("#adminScrim").classList.remove("open"); $("#adminHits").classList.add("hidden"); $("#adminSearch").value=""; }
+$("#adminBtn").onclick = openAdmin;
+$("#closeAdmin").onclick = closeAdmin;
+document.querySelectorAll("#adminScrim .tab").forEach(b=>b.onclick = ()=>setTab(b.dataset.tab));
+async function adminWrite(fn, okMsg){
+  $("#aerr").textContent = "";
+  try{ await fn(); if(okMsg) toast(okMsg); }
+  catch(ex){ $("#aerr").textContent = ex?.code==="invalid_argument" ? "Only the owner and Editors can change roles." : writeError(ex); renderAdmin(); }
+}
+/* people search */
+async function runSearch(){
+  if(!userNS || !canManage()) return;
+  const hits = await userNS.search($("#adminSearch").value);
+  const box = $("#adminHits");
+  const fresh = hits.filter(h=>h.id && !members.has(h.id) && h.id!==roleCfg.ownerId);
+  if(!fresh.length){ box.innerHTML = `<div class="hit" style="cursor:default;color:var(--muted)">${$("#adminSearch").value.trim() ? "No one found (or already listed)." : "Type a name or email."}</div>`; box.classList.remove("hidden"); return; }
+  box.innerHTML = fresh.map(h=>`<div class="hit" tabindex="0" data-addid="${esc(h.id)}"><img class="av" alt="" src="${esc(h.avatarUrl)}"><span class="who"><span class="pname"></span><small class="pmail"></small></span><span class="hint">Add as ${esc(roleCfg.roles.technician.label)}</span></div>`).join("");
+  box.querySelectorAll("[data-addid]").forEach((el,i)=>{ el.querySelector(".pname").textContent = fresh[i].name + (fresh[i].guest?" · guest":""); el.querySelector(".pmail").textContent = fresh[i].email || ""; });
+  box.classList.remove("hidden");
+}
+$("#adminSearch").addEventListener("focus", runSearch);
+$("#adminSearch").addEventListener("input", runSearch);
+$("#adminHits").addEventListener("click", e=>{
+  const id = e.target.closest("[data-addid]")?.dataset.addid; if(!id) return;
+  $("#adminHits").classList.add("hidden"); $("#adminSearch").value = "";
+  adminWrite(()=>db.collection("members").doc(id).set({role:"technician", added:new Date().toISOString()}), "Added — change their role in the list if needed");
+});
+$("#adminHits").addEventListener("keydown", e=>{ if(e.key==="Enter") e.target.click?.(); });
+$("#adminScrim").addEventListener("click", e=>{ if(!e.target.closest(".pickwrap")) $("#adminHits").classList.add("hidden"); });
+/* role changes */
+$("#peopleList").addEventListener("change", e=>{
+  const sel = e.target.closest(".memberRole"); if(!sel) return;
+  const id = sel.dataset.id, role = sel.value, prev = members.get(id)?.role;
+  const doIt = ()=>adminWrite(()=>db.collection("members").doc(id).set({...(members.get(id)||{}), role, changed:new Date().toISOString()}), "Role updated");
+  if(id===me.id && prev==="admin" && role!=="admin"){
+    sel.value = prev;
+    openConfirm("Change your own role?", "You'll lose access to this Admin menu. Another Admin or the owner will need to give it back.", "Change my role", async ()=>{ await db.collection("members").doc(id).set({...(members.get(id)||{}), role, changed:new Date().toISOString()}); toast("Role updated"); });
+    return;
+  }
+  doIt();
+});
+$("#peopleList").addEventListener("click", e=>{
+  const id = e.target.closest("[data-unlist]")?.dataset.unlist; if(!id) return;
+  const fallback = roleCfg.roles[roleCfg.defaultRole].label;
+  openConfirm("Remove from the list?", `They'll keep their claude.ai access, but their role here becomes <b>${esc(fallback)}</b> (the “Everyone else” role).`, "Remove",
+    async ()=>{ await db.collection("members").doc(id).delete(); toast("Removed from the list"); });
+});
+$("#defaultRole").addEventListener("change", e=>adminWrite(()=>saveRoleCfg({defaultRole:e.target.value}), "Default role updated"));
+$("#roleMatrix").addEventListener("change", e=>{
+  const cb = e.target; if(!cb.dataset.role) return;
+  const r = cb.dataset.role, perms = {...roleCfg.roles[r].perms, [cb.dataset.perm]: cb.checked};
+  const roles = Object.fromEntries(ROLE_ORDER.filter(x=>x!=="admin").map(x=>[x,{perms: x===r ? perms : roleCfg.roles[x].perms}]));
+  adminWrite(()=>saveRoleCfg({roles}), `${roleCfg.roles[r].label} privileges updated`);
+});
+
+/* ---------- standalone: accounts ---------- */
+if(window.__STANDALONE){
+  document.body.classList.add("standalone");
+  $("#adminRO").innerHTML = "You can view these settings. Only Admins can change them.";
+}
+async function renderAccounts(){
+  if(!window.__STANDALONE) return;
+  $("#acctAdmin").classList.remove("hidden");
+  let users = [];
+  try{ users = await window.__api("GET","/api/users"); }catch(ex){ $("#acctList").textContent = ex.message || "Couldn't load accounts."; return; }
+  users.sort((a,b)=>(b.owner-a.owner) || (a.name||a.username).localeCompare(b.name||b.username));
+  $("#acctList").innerHTML = users.map(u=>`<div class="dlrow acctrow ${u.disabled?"off":""}" data-uid="${esc(u.id)}">
+      <span class="who"><b class="nm2"></b><small class="sub"></small></span>
+      ${u.owner ? `<span class="type">Owner · Admin</span>` : `<select class="acctRole" style="width:auto">${roleOptions(u.role)}</select>`}
+      <button class="btn ghost" data-act="pw">Reset password</button>
+      ${u.owner || u.id===me.id ? "" : `<button class="btn ghost" data-act="toggle">${u.disabled?"Enable":"Disable"}</button><button class="btn ghost del" data-act="delete">Delete</button>`}
+    </div>`).join("");
+  $("#acctList").querySelectorAll("[data-uid]").forEach(el=>{
+    const u = users.find(x=>x.id===el.dataset.uid);
+    el.querySelector(".nm2").textContent = (u.name || u.username) + (u.id===me.id ? " (you)" : "") + (u.disabled ? " · disabled" : "");
+    el.querySelector(".sub").textContent = [u.username, u.email, u.lastLogin ? "last sign-in " + fmtDate(u.lastLogin) : "never signed in"].filter(Boolean).join(" · ");
+  });
+  $("#acctList")._users = users;
+}
+const genPassword = () => { const a="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"; return Array.from(crypto.getRandomValues(new Uint8Array(12)), b=>a[b%a.length]).join(""); };
+$("#genPw").onclick = ()=>{ $("#newAcct").elements.password.value = genPassword(); };
+$("#newAcct").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const v = Object.fromEntries(new FormData(e.target));
+  $("#aerr").textContent = "";
+  try{ await window.__api("POST","/api/users", v); e.target.reset(); toast(`Account ${v.username} created — give them the temporary password`); renderAccounts(); }
+  catch(ex){ $("#aerr").textContent = ex.message || "Couldn't create the account."; }
+});
+$("#acctList").addEventListener("change", async e=>{
+  const sel = e.target.closest(".acctRole"); if(!sel) return;
+  const id = sel.closest("[data-uid]").dataset.uid;
+  try{ await window.__api("PATCH",`/api/users/${id}`,{role:sel.value}); toast("Role updated"); }
+  catch(ex){ $("#aerr").textContent = ex.message; }
+  renderAccounts();
+});
+$("#acctList").addEventListener("click", e=>{
+  const b = e.target.closest("[data-act]"); if(!b) return;
+  const id = b.closest("[data-uid]").dataset.uid, u = ($("#acctList")._users||[]).find(x=>x.id===id); if(!u) return;
+  const who = esc(u.name || u.username);
+  if(b.dataset.act==="pw"){
+    const pw = genPassword();
+    openConfirm("Reset password?", `Set a new temporary password for <b>${who}</b>? They'll be signed out everywhere.<br><br>New password: <b style="font-family:var(--mono);user-select:all">${pw}</b><br><small>Copy it before confirming and give it to them.</small>`, "Reset password",
+      async ()=>{ await window.__api("PATCH",`/api/users/${id}`,{password:pw}); toast("Password reset"); renderAccounts(); });
+  } else if(b.dataset.act==="toggle"){
+    openConfirm(u.disabled ? "Enable account?" : "Disable account?", u.disabled ? `<b>${who}</b> will be able to sign in again.` : `<b>${who}</b> will be signed out and can't sign in until enabled again.`, u.disabled ? "Enable" : "Disable",
+      async ()=>{ await window.__api("PATCH",`/api/users/${id}`,{disabled:!u.disabled}); toast(u.disabled ? "Account enabled" : "Account disabled"); renderAccounts(); });
+  } else if(b.dataset.act==="delete"){
+    openConfirm("Delete account?", `Delete <b>${who}</b>'s account? Devices and intersections they added stay. This can't be undone.`, "Delete account",
+      async ()=>{ await window.__api("DELETE",`/api/users/${id}`); toast("Account deleted"); renderAccounts(); });
+  }
+});
+window.addEventListener("iid-users-changed", ()=>{ if($("#adminScrim").classList.contains("open")) renderAccounts(); });
+/* your account */
+$("#acctBtn").onclick = ()=>{
+  $("#myAcctForm").reset(); $("#myAcctErr").textContent = "";
+  $("#myAcctWho").textContent = `Signed in as ${me.name || me.username}${me.name && me.username ? " ("+me.username+")" : ""} · ${roleCfg.roles[myRole()].label}`;
+  $("#myAcctScrim").classList.add("open");
+};
+$("#closeMyAcct").onclick = ()=>$("#myAcctScrim").classList.remove("open");
+$("#signOut").onclick = async ()=>{ try{ await window.__api("POST","/api/logout"); }catch{} location.reload(); };
+$("#myAcctForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const v = Object.fromEntries(new FormData(e.target)), err = $("#myAcctErr");
+  if(v.password !== v.confirm){ err.textContent = "The new passwords don't match."; return; }
+  try{ await window.__api("POST","/api/me/password",{current:v.current, password:v.password}); $("#myAcctScrim").classList.remove("open"); toast("Password changed"); }
+  catch(ex){ err.textContent = ex.message || "Couldn't change the password."; }
+});
+
+/* ---------- address pools ---------- */
+const pform = $("#poolForm");
+let editingPoolId = null;
+function renderPools(){
+  const ps = [...pools.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+  $("#poolList").innerHTML = ps.length ? `<table class="ptable"><thead><tr><th>Pool</th><th>Range</th><th>Device types</th><th>Used</th><th></th></tr></thead><tbody>${
+    ps.map(p=>{ const u=usedInRange(p.range), sz=rangeSize(p.range);
+      return `<tr><td><strong>${esc(p.name)}</strong></td><td class="ip">${esc(p.range?.text||"—")}</td>
+      <td>${p.types.length ? p.types.map(t=>`<span class="type">${esc(t)}</span>`).join(" ") : '<span style="color:var(--muted)">none yet</span>'}</td>
+      <td${u>=sz&&sz?' style="color:var(--danger)"':""}>${u}/${sz}</td>
+      <td class="act">${can("pools.manage")?`<button class="btn ghost" data-editpool="${esc(p.id)}">Edit</button><button class="btn ghost del" data-delpool="${esc(p.id)}">Remove</button>`:""}</td></tr>`; }).join("")
+  }</tbody></table>` : `<div class="noDev" style="padding:0">No pools yet. Create one below and pick the device types it hands out IPs to.</div>`;
+}
+/* type chips: every known type; ones already served by another pool are locked */
+let poolFormTypes = [];
+function renderPoolTypes(){
+  const all = new Map();
+  [...DEFAULT_TYPES, ...devices.map(d=>d.type), ...[...pools.values()].flatMap(p=>p.types), ...poolFormTypes].forEach(t=>{ if(t && !all.has(norm(t))) all.set(norm(t), t); });
+  const chosen = new Set(poolFormTypes.map(norm));
+  $("#poolTypes").innerHTML = [...all.values()].sort((a,b)=>a.localeCompare(b)).map(t=>{
+    const owner = [...pools.values()].find(p=>p.id!==editingPoolId && p.types.some(x=>norm(x)===norm(t)));
+    return `<label class="${owner?"taken":""}" title="${owner?`Already uses the ${esc(owner.name)} pool`:""}"><input type="checkbox" value="${esc(t)}" ${chosen.has(norm(t))?"checked":""} ${owner?"disabled":""}>${esc(t)}${owner?` <small>· ${esc(owner.name)}</small>`:""}</label>`;
+  }).join("");
+}
+$("#poolTypes").addEventListener("change", e=>{
+  const t = e.target.value;
+  poolFormTypes = e.target.checked ? [...poolFormTypes, t] : poolFormTypes.filter(x=>norm(x)!==norm(t));
+});
+$("#addPoolType").onclick = ()=>{
+  const t = tidy($("#newPoolType").value); if(!t) return;
+  const owner = [...pools.values()].find(p=>p.id!==editingPoolId && p.types.some(x=>norm(x)===norm(t)));
+  if(owner){ $("#perr").textContent = `${t} already gets IPs from the ${owner.name} pool.`; return; }
+  const known = devices.find(d=>norm(d.type)===norm(t))?.type || DEFAULT_TYPES.find(x=>norm(x)===norm(t)) || t;
+  if(!poolFormTypes.some(x=>norm(x)===norm(t))) poolFormTypes.push(known);
+  $("#newPoolType").value=""; $("#perr").textContent=""; renderPoolTypes();
+};
+$("#newPoolType").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#addPoolType").click(); } });
+function resetPoolForm(){
+  editingPoolId = null; pform.reset(); poolFormTypes = []; renderPoolTypes(); $("#perr").textContent=""; $("#poolRangeInfo").textContent="";
+  $("#poolFormTitle").textContent="New pool"; $("#savePool").textContent="Add pool"; $("#cancelPoolEdit").classList.add("hidden");
+}
+function openPools(){ resetPoolForm(); renderPools(); $("#poolScrim").classList.add("open"); }
+function closePools(){ $("#poolScrim").classList.remove("open"); }
+$("#poolsBtn").onclick = openPools;
+$("#closePools").onclick = closePools;
+$("#cancelPoolEdit").onclick = resetPoolForm;
+pform.elements.range.addEventListener("input", ()=>{
+  const r = parseRange(pform.elements.range.value), el=$("#poolRangeInfo");
+  el.style.color = r?.error ? "var(--danger)" : "";
+  el.textContent = !r ? "" : r.error ? r.error : `${numToIp(r.s)} → ${numToIp(r.e)} · ${rangeSize(r).toLocaleString()} addresses`;
+});
+$("#poolList").addEventListener("click", e=>{
+  const t = e.target.closest("[data-editpool],[data-delpool]"); if(!t) return;
+  if(t.dataset.editpool){
+    const p = pools.get(t.dataset.editpool); if(!p) return;
+    editingPoolId = p.id; poolFormTypes = [...p.types]; renderPoolTypes(); pform.elements.name.value = p.name; pform.elements.range.value = p.range ? p.range.text.replace(" – "," - ") : "";
+    pform.elements.range.dispatchEvent(new Event("input"));
+    $("#poolFormTitle").textContent = `Edit ${p.name}`; $("#savePool").textContent="Save pool"; $("#cancelPoolEdit").classList.remove("hidden"); $("#perr").textContent="";
+    pform.elements.name.focus();
+  } else {
+    const p = pools.get(t.dataset.delpool); if(!p) return;
+    openConfirm("Remove pool?",
+      `Remove the <strong>${esc(p.name)}</strong> pool (${esc(p.range?.text||"")})?` + (p.types.length ? ` ${esc(p.types.join(", "))} devices will no longer get IPs automatically. Existing devices keep their IPs.` : ""),
+      "Remove pool",
+      async ()=>{
+        await db.collection("pools").doc(p.id).delete();
+        if(editingPoolId===p.id) resetPoolForm();
+        toast("Pool removed");
+      });
+  }
+});
+pform.addEventListener("submit", async e=>{
+  e.preventDefault();
+  const err = $("#perr"), name = tidy(pform.elements.name.value), r = parseRange(pform.elements.range.value);
+  if(!name) return err.textContent = "Give the pool a name.";
+  if([...pools.values()].some(p=>p.id!==editingPoolId && norm(p.name)===norm(name))) return err.textContent = `There's already a pool called ${name}.`;
+  if(!r) return err.textContent = "Enter the pool's IP range.";
+  if(r.error) return err.textContent = r.error;
+  const conflict = rangeConflict(r, editingPoolId);
+  if(!poolFormTypes.length) return err.textContent = "Pick at least one device type for this pool.";
+  const taken = poolFormTypes.map(t=>[t,[...pools.values()].find(p=>p.id!==editingPoolId && p.types.some(x=>norm(x)===norm(t)))]).find(([,o])=>o);
+  if(taken) return err.textContent = `${taken[0]} already gets IPs from the ${taken[1].name} pool.`;
+  if(conflict) return err.textContent = conflict;
+  if(!db) return err.textContent = "Saving isn't available in this view.";
+  const btn = $("#savePool"); btn.disabled = true;
+  try{
+    const body = {name, range:r.text, types:poolFormTypes, updated:new Date().toISOString()};
+    if(editingPoolId) await db.collection("pools").doc(editingPoolId).set(body);
+    else await db.collection("pools").add(body);
+    toast(editingPoolId ? "Pool updated" : "Pool added");
+    resetPoolForm();
+  }catch(ex){ err.textContent = writeError(ex); }
+  finally{ btn.disabled = false; }
+});
+
+/* ---------- data ---------- */
+function update(){
+  rebuild(); refreshOptions(); render();
+  if($("#poolScrim").classList.contains("open")){ renderPools(); renderPoolTypes(); }
+  if($("#devListScrim").classList.contains("open")) renderDevList();
+  if($("#editScrim").classList.contains("open")) fillDevSelect($("#devSel").value);
+}
+update();
+(async ()=>{
+  try{ db = await window.claude?.use("db"); }catch{ db = null; }
+  if(!db){ shareWrite=false; applyWriteMode(); setStatus("Your saved inventory can't be reached in this view. Open the page on claude.ai while signed in to view and edit it.", true); render(); return; }
+  try{
+    userNS = await window.claude.use("user");
+    if(userNS){
+      const c = await userNS.can("data.write"); if(c===false) shareWrite=false;
+      const m = await userNS.me(); me = {id:m.id, isOwner:!!m.isOwner, canEdit:!!m.canEdit, role:m.role||null, username:m.username||"", name:m.name||""};
+    }
+  }catch{}
+  applyWriteMode();
+  /* roles: the shared config + who has which role */
+  db.doc("admin/config").onSnapshot(snap=>{
+    const c = snap.exists ? snap.data() : {};
+    const roles = {};
+    ROLE_ORDER.forEach(r=>{ roles[r] = {label:DEFAULT_ROLES[r].label, perms:{...DEFAULT_ROLES[r].perms, ...(c.roles?.[r]?.perms||{})}}; });
+    roles.admin.perms = {...DEFAULT_ROLES.admin.perms};      // Admins can always do everything
+    roleCfg = {roles, defaultRole: roles[c.defaultRole] ? c.defaultRole : "viewer", ownerId: c.ownerId || null};
+    rolesLoaded = true;
+    // remember who the owner is, so admins can see them listed
+    if(me.isOwner && me.id && roleCfg.ownerId!==me.id && !snap.metadata.fromCache) saveRoleCfg({ownerId:me.id}).catch(()=>{});
+    applyWriteMode(); render(); if($("#adminScrim").classList.contains("open")) renderAdmin();
+  }, ()=>{ rolesLoaded = true; applyWriteMode(); render(); });
+  db.collection("members").onSnapshot(snap=>{
+    members = new Map(snap.docs.map(d=>[d.id, d.data()]));
+    applyWriteMode(); render(); if($("#adminScrim").classList.contains("open")) renderAdmin();
+  }, ()=>{});
+  let gotDev=false, gotInt=false, gotPool=false, gotOpt=false;
+  const timer = setTimeout(()=>setStatus(inters.size ? "Showing saved data — it may be out of date while reconnecting." : "Can't reach the inventory yet — still trying…", true), 10000);
+  const settle = ()=>{ if(gotDev && gotInt && gotPool && gotOpt){ clearTimeout(timer); setStatus(""); } };
+  const onErr = ()=>{ clearTimeout(timer); setStatus("The inventory couldn't be loaded. Reload the page to try again.", true); };
+  db.collection("devices").onSnapshot(snap=>{
+    devices = snap.docs.map(s=>({id:s.id, ...s.data()}));
+    if(!snap.metadata.fromCache) gotDev=true;
+    settle(); update();
+  }, onErr);
+  db.collection("deviceOptions").onSnapshot(snap=>{
+    deviceOpts = snap.docs.map(s=>({id:s.id, name:String(s.data().name||"")})).filter(o=>o.name);
+    if(!snap.metadata.fromCache) gotOpt=true;
+    settle(); update();
+  }, onErr);
+  db.collection("pools").onSnapshot(snap=>{
+    poolDocs = snap.docs.map(s=>({id:s.id, ...s.data()}));
+    if(!snap.metadata.fromCache) gotPool=true;
+    settle(); update();
+  }, onErr);
+  db.collection("intersections").onSnapshot(snap=>{
+    interDocs = snap.docs.map(s=>({id:s.id, ...s.data()}));
+    if(!snap.metadata.fromCache) gotInt=true;
+    settle(); update();
+  }, onErr);
+})();
+</script>
+</body>
+</html>
