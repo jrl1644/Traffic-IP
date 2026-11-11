@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 11.11.26-3** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
+**Version 11.11.26-4** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -55,6 +55,10 @@ Node.js 20 or newer: `node server.js` (data goes to `./data`).
 | `TZ` | — | Time zone for log timestamps. |
 
 ---
+
+## Phones and desktop
+
+The app detects the device it runs on. iPhones and other phones (and any window narrower than about 760px) get a touch layout: a **☰ Menu** for the header actions, folding **Filters**, larger buttons, intersection cards with their actions underneath, and forms as full-screen sheets with the buttons always in reach. Desktops keep the full layout.
 
 ## Accounts, roles and privileges
 
