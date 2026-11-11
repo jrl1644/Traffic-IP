@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-15** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-16** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -38,7 +38,7 @@ docker run -d --name traffic-ip -p 8187:8187 \
 
 ### Without Docker
 
-Node.js 20 or newer: `node server.js` (data goes to `./data`).
+Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=ExperimentalWarning server.js` (data goes to `./data`).
 
 ---
 
@@ -54,6 +54,7 @@ Node.js 20 or newer: `node server.js` (data goes to `./data`).
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is reached over **HTTPS**. |
 | `SESSION_DAYS` | `14` | How long a sign-in lasts. |
 | `PING_CONCURRENCY` | `16` | How many devices the Ping check pings at the same time. |
+| `CHANGELOG_DAYS` | `365` | How many days the change log keeps entries. |
 | `TZ` | — | Time zone for log timestamps. |
 
 ---
@@ -101,26 +102,32 @@ Optional settings: `PING_CONCURRENCY` (default `16`) is how many devices are pin
 
 ## Data and backups
 
-- Everything lives in `/data/db.json` (in the `traffic-ip-data` volume). It's written safely: a crash can't leave a half-written file.
-- Each time the server starts, it copies the database to `/data/backups/` and keeps the last 20 copies.
-- Admins can download or restore a full backup from **Admin → Settings → Backup & restore**.
+- Everything lives in a SQLite database, `/data/traffic-ip.sqlite` (in the `traffic-ip-data` volume). Each change is saved the moment it's made; a crash or power cut can't leave it half-written.
+- Device IPs are indexed, so the duplicate-IP check stays instant even with hundreds of thousands of devices.
+- **Upgrading from an older version** (which used `/data/db.json`): on first start the old file is imported automatically, including accounts and sign-ins, and kept as `/data/db.json.imported`.
+- Each time the server starts, it saves a copy of the database to `/data/backups/` and keeps the last 20 copies.
+- Admins can download or restore a full backup from **Admin → Settings → Backup & restore**. Before a restore, the current data is saved to `/data/backups/before-restore-….json`.
 
-Copy the backups off the server:
+Copy the backups off the server (keep at least one copy somewhere other than this machine):
 
 ```bash
 docker cp traffic-ip:/data/backups ./traffic-ip-backups
 ```
 
-Restore a backup copy: stop the container, replace `/data/db.json` with the copy, and start it again.
+Put a server copy back: stop the container, replace `/data/traffic-ip.sqlite` with the copy, and start it again.
 
 ```bash
 docker compose down
 docker run --rm -v traffic-ip_traffic-ip-data:/data -v "$PWD":/in alpine \
-  cp /in/db-YYYY-MM-DD....json /data/db.json
+  sh -c 'rm -f /data/traffic-ip.sqlite-wal /data/traffic-ip.sqlite-shm && cp /in/db-YYYY-MM-DD....sqlite /data/traffic-ip.sqlite'
 docker compose up -d
 ```
 
 (The volume name may differ. `docker volume ls` shows it.)
+
+## Change log
+
+**Admin → Change log** lists every change: devices, intersections, address pools, the Device list, settings, restores and accounts (created, role changed, disabled, password reset, deleted). Each entry shows who made it, when, and what changed (for example *IP: 10.20.0.4 → 10.20.0.9*); open an entry to see the full before and after. Search by device, IP, street or username. Entries are kept for `CHANGELOG_DAYS` days (default 365). Only admins can see it. Uploaded icons aren't copied into the log.
 
 ---
 
@@ -128,6 +135,7 @@ docker compose up -d
 
 - Passwords are stored as salted scrypt hashes. Sign-in tokens are random, kept in an HttpOnly cookie, and stored in the database only as hashes.
 - Wrong-password attempts are limited (10 per username and 50 per address every 10 minutes). Sign-in takes the same time whether or not a username exists.
+- Every change is recorded in the change log with who made it and when.
 - Roles are checked by the server on every change, duplicate IPs are refused by the server, and requests that don't come from the app itself are rejected.
 - Pages are sent with a strict Content-Security-Policy and other protective headers. Copy CSV neutralises cells that a spreadsheet would run as formulas.
 - **First start:** whoever opens the app first creates the owner account. Do that (or set `ADMIN_USERNAME`/`ADMIN_PASSWORD`) **before** making the app reachable by others.

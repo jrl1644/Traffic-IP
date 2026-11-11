@@ -147,6 +147,24 @@
   .brandslot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   header.haslogo{padding-left:calc(var(--logo-w,84px) + 18px)}
   .settinghead{margin:0 0 6px;font-size:15px}
+  .loglist{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .logrow{border-bottom:1px solid var(--line);padding:8px 10px}
+  .logrow:last-child{border-bottom:none}
+  .logrow summary{cursor:pointer;list-style:none;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:baseline}
+  .logrow summary::-webkit-details-marker{display:none}
+  .logrow .when{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .logrow .who{font-size:12px;font-weight:600;grid-column:1}
+  .logrow .what{grid-column:2;grid-row:1 / span 2;overflow-wrap:anywhere}
+  .logrow .tag{display:inline-block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:999px;margin-right:6px;background:var(--line);color:var(--ink)}
+  .logrow .tag.create{background:#dcefe3;color:#1f6f4a}.logrow .tag.delete{background:#f6dcdc;color:#9b2c2c}.logrow .tag.restore{background:#fbeccb;color:#7a5200}
+  .logtable{margin:8px 0 0;border-collapse:collapse;font-size:13px;width:100%}
+  .logtable caption{text-align:left;font-size:12px;color:var(--muted);padding-bottom:4px}
+  .logtable td{padding:3px 8px;border-top:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+  .logtable td:first-child{color:var(--muted);white-space:nowrap;width:1%}
+  .logtable s{color:#9b2c2c}
+  .logrow pre{margin:8px 0 0;font:12px/1.45 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;background:rgba(127,127,127,.08);padding:8px;border-radius:8px}
+  body.mobile .logrow summary{grid-template-columns:1fr}
+  body.mobile .logrow .what{grid-column:1;grid-row:auto}
   .pingdot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;vertical-align:-1px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
   .pingdot.ok{background:#2e9d4f} .pingdot.some{background:#e0a100} .pingdot.none{background:#d32f2f} .pingdot.off{background:#c3c9c5;opacity:.7}
   .pingdot.wait{background:#c3c9c5;animation:pingwait 1.2s ease-in-out infinite}
@@ -427,6 +445,7 @@
       <button class="tab active" data-tab="people" role="tab"><span class="claudeOnly">People &amp; roles</span><span class="saOnly">Accounts &amp; roles</span></button>
       <button class="tab" data-tab="roles" role="tab">Role privileges</button>
       <button class="tab" data-tab="settings" role="tab">Settings</button>
+      <button class="tab saOnly" data-tab="log" role="tab">Change log</button>
     </div>
     <div class="notice hidden" id="adminRO">You can view these settings. Only the owner and people shared as <b>Editor</b> on claude.ai can change them.</div>
 
@@ -500,6 +519,12 @@
       <div class="hint" id="bkStatus" style="margin-top:8px;min-height:18px"></div>
     </section>
 
+    <section class="tabpane hidden" data-pane="log">
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Every change to intersections, devices, pools, the Device list, settings and accounts: who made it and when. <span id="logKeep"></span></p>
+      <input id="logSearch" placeholder="Search the log — a device, IP, street or username…" autocomplete="off" style="margin-bottom:8px">
+      <div id="logList" class="loglist"></div>
+      <div style="display:flex;justify-content:center;margin-top:8px"><button type="button" class="btn hidden" id="logMore">Show older changes</button></div>
+    </section>
 
     <div class="ferr" id="aerr"></div>
     <div class="actions"><button class="btn" id="closeAdmin">Done</button></div>
@@ -569,7 +594,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-15";
+const APP_VERSION = "26.11.11-16";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1611,6 +1636,52 @@ function setTab(t){
   adminTab = t;
   document.querySelectorAll("#adminScrim .tab").forEach(b=>b.classList.toggle("active", b.dataset.tab===t));
   document.querySelectorAll("#adminScrim .tabpane").forEach(p=>p.classList.toggle("hidden", p.dataset.pane!==t));
+  if(t==="log") loadLog(true);
+}
+/* ---------- change log (self-hosted version: the server records every change) ---------- */
+const logState = { last: 0, q: "", busy: false };
+const LOG_TAG = {create:"Added", update:"Changed", delete:"Removed", account:"Account", restore:"Restore"};
+function logWhen(iso){
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {year: d.getFullYear()===new Date().getFullYear() ? undefined : "numeric", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"});
+}
+const LOG_FIELD = {name:"Device", type:"Type", ip:"IP", mac:"MAC", notes:"Notes", street1:"Street 1", street2:"Street 2", number:"Intersection ID", lat:"Latitude", lon:"Longitude", range:"IP range", types:"Device types", created:"Created", updated:"Updated"};
+const logVal = v => v===undefined || v===null || v==="" ? "—" : Array.isArray(v) ? v.join(", ") : typeof v==="object" ? JSON.stringify(v) : String(v);
+function logDetail(before, after){
+  if(!before && !after) return "";
+  const keys = [...new Set([...Object.keys(before||{}), ...Object.keys(after||{})])];
+  const both = before && after;
+  const rows = keys.filter(k => !both || JSON.stringify(before[k])!==JSON.stringify(after[k]) || ["name","ip"].includes(k)).map(k => {
+    const label = esc(LOG_FIELD[k] || k);
+    if(!both) return `<tr><td>${label}</td><td>${esc(logVal((before||after)[k]))}</td></tr>`;
+    const same = JSON.stringify(before[k])===JSON.stringify(after[k]);
+    return `<tr><td>${label}</td><td>${same ? esc(logVal(after[k])) : `<s>${esc(logVal(before[k]))}</s> → <b>${esc(logVal(after[k]))}</b>`}</td></tr>`;
+  });
+  return `<table class="logtable">${both ? "" : `<caption>${before ? "What was removed" : "What was added"}</caption>`}${rows.join("")}</table>`;
+}
+async function loadLog(reset){
+  if(!window.__STANDALONE || logState.busy) return;
+  if(window.__STANDALONE && myRole()!=="admin" && !me.isOwner){ $("#logList").innerHTML = `<div class="noDev" style="padding:10px">Only admins can see the change log.</div>`; return; }
+  logState.busy = true;
+  if(reset){ logState.last = 0; $("#logList").innerHTML = `<div class="noDev" style="padding:10px">Loading…</div>`; }
+  try{
+    const qs = new URLSearchParams({limit:"50"}); if(logState.q) qs.set("q", logState.q); if(logState.last) qs.set("before", String(logState.last));
+    const r = await window.__api("GET", "/api/changelog?"+qs);
+    $("#logKeep").textContent = `Changes are kept for ${r.keepDays >= 365 && r.keepDays % 365 === 0 ? (r.keepDays/365===1 ? "1 year" : r.keepDays/365+" years") : r.keepDays+" days"}.`;
+    const html = r.entries.map(e=>{
+      const detail = logDetail(e.before, e.after);
+      return `<details class="logrow"><summary><span class="when">${esc(logWhen(e.at))}</span><span class="what"><span class="tag ${esc(e.action)}">${esc(LOG_TAG[e.action]||e.action)}</span>${esc(e.summary)}</span><span class="who">${esc(e.username||"")}</span></summary>${detail || `<div class="hint" style="margin-top:6px">No more detail recorded.</div>`}</details>`;
+    }).join("");
+    if(reset) $("#logList").innerHTML = html || `<div class="noDev" style="padding:10px">${logState.q ? "No changes match that search." : "No changes recorded yet."}</div>`;
+    else $("#logList").insertAdjacentHTML("beforeend", html);
+    if(r.entries.length) logState.last = r.entries[r.entries.length-1].id;
+    $("#logMore").classList.toggle("hidden", !r.more);
+  }catch(ex){ $("#logList").innerHTML = `<div class="noDev" style="padding:10px">${esc(ex?.message || "Couldn't load the change log.")}</div>`; }
+  finally{ logState.busy = false; }
+}
+{
+  let t; $("#logSearch").addEventListener("input", e=>{ clearTimeout(t); t = setTimeout(()=>{ logState.q = e.target.value.trim(); loadLog(true); }, 250); });
+  $("#logMore").onclick = ()=>loadLog(false);
 }
 async function renderAdmin(){
   const ro = !canManage();

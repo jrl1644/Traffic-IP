@@ -1,6 +1,6 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-15";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
-// No external dependencies: Node.js 20+ built-ins only.
+const VERSION = "26.11.11-16";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+// No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
 const fs = require("fs");
@@ -8,6 +8,7 @@ const path = require("path");
 const crypto = require("crypto");
 const net = require("net");
 const { execFile } = require("child_process");
+const { DatabaseSync } = require("node:sqlite");
 
 const PORT = parseInt(process.env.PORT || "8187", 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -15,44 +16,161 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const COOKIE_SECURE = /^(1|true|yes)$/i.test(process.env.COOKIE_SECURE || "");
 const TRUST_PROXY = /^(1|true|yes)$/i.test(process.env.TRUST_PROXY || "");   // set when behind a reverse proxy, so login limits use the real client address
 const SESSION_DAYS = parseFloat(process.env.SESSION_DAYS || "14");
-const DB_FILE = path.join(DATA_DIR, "db.json");
+const DB_PATH = path.join(DATA_DIR, "traffic-ip.sqlite");
+const LEGACY_JSON = path.join(DATA_DIR, "db.json");            // storage used before v26.11.11-16; imported once
 const BACKUP_DIR = path.join(DATA_DIR, "backups");
 const MAX_BODY = 512 * 1024;
+const CHANGELOG_DAYS = Math.max(1, parseInt(process.env.CHANGELOG_DAYS || "365", 10));
 
-/* ------------------------------------------------------------------ storage */
+/* ------------------------------------------------------------------ storage (SQLite)
+   One row per record (intersection, device, pool…), stored as JSON. Device IPs are indexed,
+   so the duplicate-IP check stays instant at any size. Every write is saved immediately and safely. */
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
-let state = { collections: {}, users: {}, sessions: {} };
-if (fs.existsSync(DB_FILE)) {
-  state = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
-  state.collections ||= {}; state.users ||= {}; state.sessions ||= {};
-  // keep a copy of the database each time the server starts (last 20)
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, `db-${stamp}.json`));
-  const old = fs.readdirSync(BACKUP_DIR).filter(f => f.startsWith("db-")).sort();
-  old.slice(0, Math.max(0, old.length - 20)).forEach(f => fs.unlinkSync(path.join(BACKUP_DIR, f)));
-}
-let saveTimer = null;
-function save() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const tmp = DB_FILE + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(state));
-    fs.renameSync(tmp, DB_FILE);                    // atomic replace
-  }, 150);
-}
-function flushSync() {
-  clearTimeout(saveTimer);
-  const tmp = DB_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(state));
-  fs.renameSync(tmp, DB_FILE);
-}
-process.on("SIGTERM", () => { flushSync(); process.exit(0); });
-process.on("SIGINT", () => { flushSync(); process.exit(0); });
+const db = new DatabaseSync(DB_PATH);
+db.exec(`
+  PRAGMA journal_mode = WAL;
+  PRAGMA synchronous = NORMAL;
+  PRAGMA busy_timeout = 5000;
+  CREATE TABLE IF NOT EXISTS docs (coll TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (coll, id)) WITHOUT ROWID;
+  CREATE INDEX IF NOT EXISTS docs_device_ip ON docs (json_extract(data, '$.ip')) WHERE coll = 'devices';
+  CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE, data TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS sessions (key TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
+  CREATE TABLE IF NOT EXISTS changelog (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT, username TEXT,
+    action TEXT NOT NULL, coll TEXT, doc_id TEXT, summary TEXT NOT NULL, before TEXT, after TEXT);
+  CREATE INDEX IF NOT EXISTS changelog_at ON changelog (at);
+  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+`);
+const Q = {
+  getDoc: db.prepare("SELECT data FROM docs WHERE coll = ? AND id = ?"),
+  listDocs: db.prepare("SELECT id, data FROM docs WHERE coll = ? ORDER BY id"),
+  putDoc: db.prepare("INSERT INTO docs (coll, id, data) VALUES (?, ?, ?) ON CONFLICT (coll, id) DO UPDATE SET data = excluded.data"),
+  delDoc: db.prepare("DELETE FROM docs WHERE coll = ? AND id = ?"),
+  allDocs: db.prepare("SELECT coll, id, data FROM docs ORDER BY coll, id"),
+  clearDocs: db.prepare("DELETE FROM docs"),
+  ipTaken: db.prepare("SELECT id, data FROM docs WHERE coll = 'devices' AND json_extract(data, '$.ip') = ? AND id <> ? LIMIT 1"),
+  deviceIps: db.prepare("SELECT DISTINCT json_extract(data, '$.ip') AS ip FROM docs WHERE coll = 'devices'"),
+  countColl: db.prepare("SELECT COUNT(*) AS n FROM docs WHERE coll = ?"),
+  getUser: db.prepare("SELECT data FROM users WHERE id = ?"),
+  findUser: db.prepare("SELECT data FROM users WHERE username = ?"),
+  listUsers: db.prepare("SELECT data FROM users ORDER BY username"),
+  countUsers: db.prepare("SELECT COUNT(*) AS n FROM users"),
+  putUser: db.prepare("INSERT INTO users (id, username, data) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET username = excluded.username, data = excluded.data"),
+  delUser: db.prepare("DELETE FROM users WHERE id = ?"),
+  getSession: db.prepare("SELECT user_id, expires FROM sessions WHERE key = ?"),
+  putSession: db.prepare("INSERT INTO sessions (key, user_id, expires) VALUES (?, ?, ?)"),
+  delSession: db.prepare("DELETE FROM sessions WHERE key = ?"),
+  delUserSessions: db.prepare("DELETE FROM sessions WHERE user_id = ? AND key <> ?"),
+  pruneSessions: db.prepare("DELETE FROM sessions WHERE expires < ?"),
+  addLog: db.prepare("INSERT INTO changelog (at, user_id, username, action, coll, doc_id, summary, before, after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"),
+  pruneLog: db.prepare("DELETE FROM changelog WHERE at < ?"),
+  getMeta: db.prepare("SELECT value FROM meta WHERE key = ?"),
+  putMeta: db.prepare("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value"),
+};
+function tx(fn) { db.exec("BEGIN IMMEDIATE"); try { const r = fn(); db.exec("COMMIT"); return r; } catch (e) { try { db.exec("ROLLBACK"); } catch {} throw e; } }
 
 const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
-const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
-const coll = name => { if (RESERVED.has(name)) throw new Error("reserved"); if (!own(state.collections, name)) state.collections[name] = {}; return state.collections[name]; };
-const peek = name => (!RESERVED.has(name) && own(state.collections, name)) ? state.collections[name] : {};   // read without creating
+const parse = t => { try { return JSON.parse(t); } catch { return null; } };
+function getDoc(c, id) { const r = Q.getDoc.get(c, id); return r ? parse(r.data) : undefined; }
+function listColl(c) { const out = {}; for (const r of Q.listDocs.all(c)) out[r.id] = parse(r.data); return out; }
+function putDoc(c, id, data) { if (c === "devices" && typeof data.ip === "string") data.ip = data.ip.trim(); Q.putDoc.run(c, id, JSON.stringify(data)); }
+function delDoc(c, id) { Q.delDoc.run(c, id); }
+const adminDoc = id => getDoc("admin", id) || {};
+
+/* accounts */
+function getUser(id) { const r = Q.getUser.get(String(id)); return r ? parse(r.data) : null; }
+function findUser(username) { const r = Q.findUser.get(String(username || "").trim()); return r ? parse(r.data) : null; }
+function listUsers() { return Q.listUsers.all().map(r => parse(r.data)); }
+function userCount() { return Q.countUsers.get().n; }
+function saveUser(u) { const { _token, ...data } = u; Q.putUser.run(data.id, data.username, JSON.stringify(data)); }
+
+/* first start after upgrading: import the old db.json once */
+(function importLegacy() {
+  if (!fs.existsSync(LEGACY_JSON) || Q.getMeta.get("imported_json")) return;
+  if (Q.countUsers.get().n || db.prepare("SELECT COUNT(*) AS n FROM docs").get().n) return;
+  const old = JSON.parse(fs.readFileSync(LEGACY_JSON, "utf8"));
+  tx(() => {
+    for (const [c, docs] of Object.entries(old.collections || {}))
+      if (!RESERVED.has(c) && docs && typeof docs === "object") for (const [id, d] of Object.entries(docs)) if (!RESERVED.has(id) && d && typeof d === "object") putDoc(c, id, d);
+    for (const u of Object.values(old.users || {})) if (u && u.id && u.username) Q.putUser.run(u.id, u.username, JSON.stringify(u));
+    for (const [k, v] of Object.entries(old.sessions || {})) if (v && v.v === 2 && /^[a-f0-9]{64}$/.test(k)) Q.putSession.run(k, v.userId, v.expires);
+    Q.putMeta.run("imported_json", new Date().toISOString());
+  });
+  fs.renameSync(LEGACY_JSON, LEGACY_JSON + ".imported");
+  console.log(`Imported ${db.prepare("SELECT COUNT(*) AS n FROM docs").get().n} records and ${userCount()} accounts from db.json (kept as db.json.imported).`);
+})();
+
+/* a snapshot of the database each time the server starts (last 20) */
+(function startupBackup() {
+  if (!userCount() && !db.prepare("SELECT COUNT(*) AS n FROM docs").get().n) return;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const target = path.join(BACKUP_DIR, `db-${stamp}.sqlite`);
+  db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
+  const old = fs.readdirSync(BACKUP_DIR).filter(f => /^db-.*\.(sqlite|json)$/.test(f)).sort();
+  old.slice(0, Math.max(0, old.length - 20)).forEach(f => fs.unlinkSync(path.join(BACKUP_DIR, f)));
+})();
+
+/* ------------------------------------------------------------------ change log
+   Who changed what, and when. Kept for CHANGELOG_DAYS (default 365). Images (logos) are left out. */
+const FIELD_LABEL = { ip: "IP", name: "Device", type: "Type", mac: "MAC", notes: "Notes", street1: "Street 1", street2: "Street 2",
+  number: "Intersection ID", lat: "Latitude", lon: "Longitude", range: "IP range", types: "Device types" };
+const SKIP_FIELDS = new Set(["created", "updated", "id"]);
+const where = d => d && (d.street1 || d.street2) ? ` at ${d.street1 || "?"} & ${d.street2 || "?"}` : "";
+const show = v => v === undefined || v === null || v === "" ? "(blank)" : Array.isArray(v) ? v.join(", ") : typeof v === "object" ? "…" : String(v).length > 60 ? String(v).slice(0, 57) + "…" : String(v);
+function stripImages(v) {
+  if (!v || typeof v !== "object") return v;
+  if (Array.isArray(v)) return v.map(stripImages);
+  const o = {};
+  for (const [k, x] of Object.entries(v)) o[k] = typeof x === "string" && x.startsWith("data:") ? `[image, ${Math.round(x.length / 1365)} KB]` : stripImages(x);
+  return o;
+}
+function diffFields(before, after) {
+  const keys = [...new Set([...Object.keys(before || {}), ...Object.keys(after || {})])].filter(k => !SKIP_FIELDS.has(k));
+  const out = [];
+  for (const k of keys) {
+    const a = before?.[k], b = after?.[k];
+    if (JSON.stringify(a) === JSON.stringify(b)) continue;
+    if ((typeof a === "string" && a.startsWith("data:")) || (typeof b === "string" && b.startsWith("data:"))) { out.push(`${FIELD_LABEL[k] || k} image ${b ? "changed" : "removed"}`); continue; }
+    if ((a && typeof a === "object" && !Array.isArray(a)) || (b && typeof b === "object" && !Array.isArray(b))) { out.push(`${FIELD_LABEL[k] || k} changed`); continue; }
+    out.push(`${FIELD_LABEL[k] || k}: ${show(a)} → ${show(b)}`);
+  }
+  return out;
+}
+function describeChange(c, before, after, id) {
+  const d = after || before || {};
+  const verb = !before ? "Added" : !after ? "Removed" : "Changed";
+  let what;
+  switch (c) {
+    case "devices": what = `device ${d.name || "(unnamed)"} (${d.ip || "no IP"})${where(d)}`; break;
+    case "intersections": what = `intersection ${d.street1 || "?"} & ${d.street2 || "?"}${d.number ? ` [${d.number}]` : ""}`; break;
+    case "pools": what = `IP pool ${d.name || ""}${d.range ? ` (${d.range})` : ""}`; break;
+    case "deviceOptions": what = `“${d.name || ""}” in the Device list`; break;
+    case "admin": what = ({ config: "role privileges", branding: "custom icon", settings: "settings" })[id] || "admin settings"; break;
+    case "members": what = `member ${d.name || d.email || ""}`; break;
+    default: what = `${c} record`;
+  }
+  if (!before || !after) return `${verb} ${what}`;
+  const diffs = diffFields(before, after);
+  return `${verb} ${what}${diffs.length ? " — " + diffs.join("; ") : ""}`;
+}
+function logChange(u, action, c, id, summary, before, after) {
+  try {
+    Q.addLog.run(new Date().toISOString(), u?.id || null, u?.username || "(system)", action, c || null, id || null, String(summary).slice(0, 2000),
+      before === undefined || before === null ? null : JSON.stringify(stripImages(before)),
+      after === undefined || after === null ? null : JSON.stringify(stripImages(after)));
+  } catch (e) { console.error("change log:", e.message); }
+}
+const pruneLog = () => Q.pruneLog.run(new Date(Date.now() - CHANGELOG_DAYS * 864e5).toISOString());
+pruneLog(); setInterval(pruneLog, 6 * 3600e3);
+function exportCollections() {
+  const out = {};
+  for (const r of Q.allDocs.iterate()) (out[r.coll] ||= {})[r.id] = parse(r.data);
+  return out;
+}
+
+function shutdown() { try { db.close(); } catch {} process.exit(0); }
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
 /* ------------------------------------------------------------------ roles */
 const PERMS = ["devices.add","devices.edit","devices.remove","inters.add","inters.edit","inters.remove","devlist.manage","pools.manage","export.csv"];
@@ -62,9 +180,10 @@ const DEFAULT_ROLES = {
   viewer: { "export.csv": true },
 };
 const ROLES = ["admin", "technician", "viewer"];
+const ROLE_LABEL = { admin: "Admin", technician: "Technician", viewer: "Viewer" };
 function rolePerms(role) {
   if (role === "admin") return DEFAULT_ROLES.admin;
-  const cfg = peek("admin").config || {};
+  const cfg = adminDoc("config");
   return { ...DEFAULT_ROLES[role] || {}, ...(cfg.roles?.[role]?.perms || {}) };
 }
 function userRole(u) { return u.owner ? "admin" : (ROLES.includes(u.role) ? u.role : "viewer"); }
@@ -82,31 +201,28 @@ function checkPassword(u, pw) {
 }
 function validPassword(pw) { return typeof pw === "string" && pw.length >= 8; }
 const publicUser = u => ({ id: u.id, username: u.username, name: u.name || "", email: u.email || "", role: userRole(u), owner: !!u.owner, disabled: !!u.disabled, created: u.created, lastLogin: u.lastLogin || null });
-function findUser(username) { const n = String(username || "").trim().toLowerCase(); return Object.values(state.users).find(u => u.username.toLowerCase() === n); }
 function checkLogin(username, pw) { const u = findUser(username); const ok = checkPassword(u || DUMMY, String(pw || "")); return u && ok ? u : null; }
 const tokenKey = t => crypto.createHash("sha256").update(t).digest("hex");   // the database never holds a usable sign-in token
 function newSession(u) {
   const token = crypto.randomBytes(32).toString("hex");
-  state.sessions[tokenKey(token)] = { v: 2, userId: u.id, expires: Date.now() + SESSION_DAYS * 864e5 };
-  u.lastLogin = new Date().toISOString(); save();
+  Q.putSession.run(tokenKey(token), u.id, Date.now() + SESSION_DAYS * 864e5);
+  u.lastLogin = new Date().toISOString(); saveUser(u);
   return token;
 }
 function sessionUser(req) {
   const m = /(?:^|;\s*)iid_session=([a-f0-9]{64})/.exec(req.headers.cookie || "");
   if (!m) return null;
   const key = tokenKey(m[1]);
-  const s = own(state.sessions, key) ? state.sessions[key] : null;
-  if (!s || s.expires < Date.now()) { if (s) { delete state.sessions[key]; save(); } return null; }
-  const u = own(state.users, s.userId) ? state.users[s.userId] : null;
+  const s = Q.getSession.get(key);
+  if (!s || s.expires < Date.now()) { if (s) Q.delSession.run(key); return null; }
+  const u = getUser(s.user_id);
   if (!u || u.disabled) return null;
   return Object.assign(u, { _token: key });
 }
 function cookie(token, maxAge) {
   return `iid_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${COOKIE_SECURE ? "; Secure" : ""}`;
 }
-setInterval(() => { const now = Date.now(); let n = 0; for (const [k, s] of Object.entries(state.sessions)) if (s.expires < now) { delete state.sessions[k]; n++; } if (n) save(); }, 3600e3);
-// sessions from before tokens were hashed can't be matched any more: drop them
-for (const k of Object.keys(state.sessions)) if (state.sessions[k]?.v !== 2) delete state.sessions[k];
+setInterval(() => Q.pruneSessions.run(Date.now()), 3600e3);
 
 // login throttle: 10 failures per 10 minutes per IP+username, and 50 per IP across all usernames
 const fails = new Map();
@@ -118,10 +234,10 @@ const DUMMY = hashPassword(crypto.randomBytes(16).toString("hex"));
 function failed(key) { const f = fails.get(key) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 600e3) { f.n = 0; f.t = Date.now(); } f.n++; fails.set(key, f); }
 
 // first admin from environment, if provided and no users exist
-if (!Object.keys(state.users).length && process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD) {
+if (!userCount() && process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD) {
   const id = "u_" + crypto.randomBytes(8).toString("hex");
-  state.users[id] = { id, username: process.env.ADMIN_USERNAME.trim(), name: process.env.ADMIN_NAME || "Administrator", owner: true, role: "admin", created: new Date().toISOString(), ...hashPassword(process.env.ADMIN_PASSWORD) };
-  flushSync();
+  saveUser({ id, username: process.env.ADMIN_USERNAME.trim(), name: process.env.ADMIN_NAME || "Administrator", owner: true, role: "admin", created: new Date().toISOString(), ...hashPassword(process.env.ADMIN_PASSWORD) });
+  logChange(null, "account", "users", id, `Created owner account ${process.env.ADMIN_USERNAME.trim()} (from settings)`);
   console.log(`Created owner account "${process.env.ADMIN_USERNAME}" from environment.`);
 }
 
@@ -135,7 +251,7 @@ const PING_BIN = process.env.PING_BIN || "ping";
 const PING_CONCURRENCY = Math.max(1, Math.min(64, parseInt(process.env.PING_CONCURRENCY || "16", 10)));
 const ping = { results: {}, lastRun: null, running: false, available: null, error: "", timer: null, manualAt: 0 };
 function pingSettings() {
-  const st = peek("admin").settings?.ping || {};
+  const st = adminDoc("settings").ping || {};
   return {
     enabled: !!st.enabled,
     intervalSec: Math.min(3600, Math.max(30, parseInt(st.intervalSec, 10) || 60)),
@@ -163,7 +279,7 @@ function pingPayload() {
 async function runPings() {
   if (ping.running) return;
   const st = pingSettings();
-  const ips = [...new Set(Object.values(peek("devices")).map(d => String(d.ip || "").trim()).filter(ip => net.isIP(ip)))];
+  const ips = Q.deviceIps.all().map(r => String(r.ip || "").trim()).filter(ip => net.isIP(ip));
   ping.running = true; broadcast({ ...pingPayload() });
   const results = {}; let i = 0, fatal = "";
   async function worker() { while (i < ips.length && !fatal) { const ip = ips[i++]; const r = await pingOne(ip, st.timeoutSec); if (r.fatal) { fatal = r.fatal; break; } results[ip] = { ok: r.ok, rttMs: r.rttMs ?? null, at: Date.now() }; } }
@@ -207,9 +323,9 @@ function writeAllowed(u, c, id, kind /* create|update|delete */) {
   // renaming an intersection replaces its record: allow removing the old record
   // with "edit" rights once no device still points at it
   if (c === "intersections" && kind === "delete" && can(u, "inters.edit")) {
-    const doc = own(peek("intersections"), id) ? peek("intersections")[id] : null; if (!doc) return true;
+    const doc = getDoc("intersections", id); if (!doc) return true;
     const a = normStreet(doc.street1), b = normStreet(doc.street2);
-    return !Object.values(peek("devices")).some(d => { const x = normStreet(d.street1), y = normStreet(d.street2); return (x === a && y === b) || (x === b && y === a); });
+    return !Object.values(listColl("devices")).some(d => { const x = normStreet(d.street1), y = normStreet(d.street2); return (x === a && y === b) || (x === b && y === a); });
   }
   return false;
 }
@@ -218,8 +334,9 @@ function validate(c, id, data) {
   if (c === "devices") {
     const ip = String(data.ip || "").trim();
     if (!ip) return "A device needs an IP address.";
-    const taken = Object.entries(peek("devices")).find(([k, d]) => k !== id && String(d.ip).trim() === ip);
-    if (taken) return { conflict: `IP ${ip} is already used by “${taken[1].name}”. Duplicate IPs aren't allowed.` };
+    data.ip = ip;                                                   // stored trimmed, so the IP index matches exactly
+    const taken = Q.ipTaken.get(ip, id);
+    if (taken) return { conflict: `IP ${ip} is already used by “${parse(taken.data)?.name || "another device"}”. Duplicate IPs aren't allowed.` };
   }
   return null;
 }
@@ -268,7 +385,7 @@ function serveStatic(req, res, urlPath) {
 const ICON_PATHS = new Set(["/favicon.ico", "/favicon.png", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png", "/icon-192.png", "/icon-512.png"]);
 const DEFAULT_ICON = fs.readFileSync(path.join(PUBLIC_DIR, "default-icon.png"));
 function currentIcon() {
-  const b = peek("admin").branding || {};
+  const b = adminDoc("branding");
   const m = typeof b.icon === "string" && b.icon.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
   return m ? { type: m[1], body: Buffer.from(m[2], "base64"), tag: String(b.updated || "") } : { type: "image/png", body: DEFAULT_ICON, tag: "default" };
 }
@@ -301,7 +418,7 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/health") return send(res, 200, { ok: true, version: VERSION });
     // the logo is public so the sign-in screen can show it (nothing else is readable before signing in)
     if (p === "/api/branding" && req.method === "GET") {
-      const logo = peek("admin").branding?.logo;
+      const logo = adminDoc("branding").logo;
       return send(res, 200, { logo: typeof logo === "string" && logo.startsWith("data:image/") ? logo : "" });
     }
 
@@ -311,16 +428,17 @@ const server = http.createServer(async (req, res) => {
     /* --- session --- */
     if (p === "/api/session" && req.method === "GET") {
       const u = sessionUser(req);
-      return send(res, 200, { needsSetup: !Object.keys(state.users).length, user: u ? { ...publicUser(u), perms: rolePerms(userRole(u)), canWrite: canWriteAny(u) } : null });
+      return send(res, 200, { needsSetup: !userCount(), user: u ? { ...publicUser(u), perms: rolePerms(userRole(u)), canWrite: canWriteAny(u) } : null });
     }
     if (p === "/api/setup" && req.method === "POST") {
-      if (Object.keys(state.users).length) return err(res, 409, "conflict", "Setup is already done.");
+      if (userCount()) return err(res, 409, "conflict", "Setup is already done.");
       const b = await readBody(req);
       if (!String(b.username || "").trim()) return err(res, 400, "invalid_argument", "Choose a username.");
       if (!validPassword(b.password)) return err(res, 400, "invalid_argument", "Passwords need at least 8 characters.");
       const id = "u_" + crypto.randomBytes(8).toString("hex");
-      const u = state.users[id] = { id, username: String(b.username).trim(), name: String(b.name || "").trim(), email: String(b.email || "").trim(), owner: true, role: "admin", created: new Date().toISOString(), ...hashPassword(b.password) };
-      const t = newSession(u); flushSync();
+      const u = { id, username: String(b.username).trim(), name: String(b.name || "").trim(), email: String(b.email || "").trim(), owner: true, role: "admin", created: new Date().toISOString(), ...hashPassword(b.password) };
+      saveUser(u); const t = newSession(u);
+      logChange(u, "account", "users", id, `Created owner account ${u.username}`);
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie(t, SESSION_DAYS * 86400) });
     }
     if (p === "/api/login" && req.method === "POST") {
@@ -334,7 +452,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie(newSession(u), SESSION_DAYS * 86400) });
     }
     if (p === "/api/logout" && req.method === "POST") {
-      const u = sessionUser(req); if (u) { delete state.sessions[u._token]; save(); }
+      const u = sessionUser(req); if (u) Q.delSession.run(u._token);
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie("", 0) });
     }
 
@@ -348,9 +466,10 @@ const server = http.createServer(async (req, res) => {
       if (throttled(pk)) return err(res, 429, "resource_exhausted", "Too many attempts. Try again in 10 minutes.");
       if (!checkPassword(u, b.current || "")) { failed(pk); return err(res, 400, "invalid_argument", "Your current password is wrong."); }
       if (!validPassword(b.password)) return err(res, 400, "invalid_argument", "Passwords need at least 8 characters.");
-      Object.assign(u, hashPassword(b.password));
-      for (const [t, s] of Object.entries(state.sessions)) if (s.userId === u.id && t !== u._token) delete state.sessions[t];
-      save(); return send(res, 200, { ok: true });
+      Object.assign(u, hashPassword(b.password)); saveUser(u);
+      Q.delUserSessions.run(u.id, u._token);
+      logChange(u, "account", "users", u.id, `${u.username} changed their own password`);
+      return send(res, 200, { ok: true });
     }
 
     if (p === "/api/events" && req.method === "GET") {
@@ -374,7 +493,7 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/users" || p.startsWith("/api/users/")) {
       if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can manage accounts.");
       const id = p.split("/")[3];
-      if (!id && req.method === "GET") return send(res, 200, Object.values(state.users).map(publicUser));
+      if (!id && req.method === "GET") return send(res, 200, listUsers().map(publicUser));
       if (!id && req.method === "POST") {
         const b = await readBody(req);
         const username = String(b.username || "").trim();
@@ -382,33 +501,57 @@ const server = http.createServer(async (req, res) => {
         if (findUser(username)) return err(res, 409, "conflict", `The username ${username} is taken.`);
         if (!validPassword(b.password)) return err(res, 400, "invalid_argument", "Passwords need at least 8 characters.");
         const nid = "u_" + crypto.randomBytes(8).toString("hex");
-        state.users[nid] = { id: nid, username, name: String(b.name || "").trim(), email: String(b.email || "").trim(), role: ROLES.includes(b.role) ? b.role : "technician", created: new Date().toISOString(), ...hashPassword(b.password) };
-        save(); return send(res, 200, publicUser(state.users[nid]));
+        const nu = { id: nid, username, name: String(b.name || "").trim(), email: String(b.email || "").trim(), role: ROLES.includes(b.role) ? b.role : "technician", created: new Date().toISOString(), ...hashPassword(b.password) };
+        saveUser(nu);
+        logChange(u, "account", "users", nid, `Created account ${username} (${ROLE_LABEL[nu.role]})`);
+        return send(res, 200, publicUser(nu));
       }
-      const t = own(state.users, id) ? state.users[id] : null;
+      const t = id && SEG.test(id) ? getUser(id) : null;
       if (!t) return err(res, 404, "not_found", "No such account.");
       if (req.method === "PATCH") {
         const b = await readBody(req);
         if (t.owner && (("role" in b && b.role !== "admin") || b.disabled)) return err(res, 400, "invalid_argument", "The owner account is always an active Admin.");
         if (t.owner && t.id !== u.id && ("password" in b || "name" in b || "email" in b)) return err(res, 403, "forbidden", "Only the owner can change the owner account.");
         if (t.id === u.id && b.disabled) return err(res, 400, "invalid_argument", "You can't disable your own account.");
-        if ("role" in b) { if (!ROLES.includes(b.role)) return err(res, 400, "invalid_argument", "Unknown role."); t.role = b.role; }
-        if ("name" in b) t.name = String(b.name || "").trim();
-        if ("email" in b) t.email = String(b.email || "").trim();
-        if ("disabled" in b) t.disabled = !!b.disabled;
-        if ("password" in b) { if (!validPassword(b.password)) return err(res, 400, "invalid_argument", "Passwords need at least 8 characters."); Object.assign(t, hashPassword(b.password)); }
-        if (t.disabled || "password" in b) for (const [k, s] of Object.entries(state.sessions)) if (s.userId === t.id && k !== u._token) delete state.sessions[k];
-        save(); kickUser(t.id); broadcast({ type: "users" });
+        if ("password" in b && !validPassword(b.password)) return err(res, 400, "invalid_argument", "Passwords need at least 8 characters.");
+        if ("role" in b && !ROLES.includes(b.role)) return err(res, 400, "invalid_argument", "Unknown role.");
+        const notes = [];
+        if ("role" in b && b.role !== userRole(t)) { notes.push(`Changed ${t.username}'s role: ${ROLE_LABEL[userRole(t)]} → ${ROLE_LABEL[b.role]}`); t.role = b.role; }
+        if ("name" in b && String(b.name || "").trim() !== (t.name || "")) { notes.push(`Changed ${t.username}'s name`); t.name = String(b.name || "").trim(); }
+        if ("email" in b && String(b.email || "").trim() !== (t.email || "")) { notes.push(`Changed ${t.username}'s email`); t.email = String(b.email || "").trim(); }
+        if ("disabled" in b && !!b.disabled !== !!t.disabled) { notes.push(`${b.disabled ? "Disabled" : "Enabled"} account ${t.username}`); t.disabled = !!b.disabled; }
+        if ("password" in b) { notes.push(`Reset ${t.username}'s password`); Object.assign(t, hashPassword(b.password)); }
+        saveUser(t);
+        if (t.disabled || "password" in b) Q.delUserSessions.run(t.id, u._token);
+        for (const n of notes) logChange(u, "account", "users", t.id, n);
+        kickUser(t.id); broadcast({ type: "users" });
         return send(res, 200, publicUser(t));
       }
       if (req.method === "DELETE") {
         if (t.owner) return err(res, 400, "invalid_argument", "The owner account can't be deleted.");
         if (t.id === u.id) return err(res, 400, "invalid_argument", "You can't delete your own account.");
-        delete state.users[id];
-        for (const [k, s] of Object.entries(state.sessions)) if (s.userId === id) delete state.sessions[k];
-        save(); kickUser(id); broadcast({ type: "users" });
+        tx(() => { Q.delUser.run(id); Q.delUserSessions.run(id, ""); });
+        logChange(u, "account", "users", id, `Deleted account ${t.username}`);
+        kickUser(id); broadcast({ type: "users" });
         return send(res, 200, { ok: true });
       }
+    }
+
+    /* --- change log (admins): newest first, ?q= search, ?before=<id> for the next page --- */
+    if (p === "/api/changelog" && req.method === "GET") {
+      if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can see the change log.");
+      const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10) || 50));
+      const before = parseInt(url.searchParams.get("before") || "0", 10) || 0;
+      const q = String(url.searchParams.get("q") || "").trim().slice(0, 100);
+      const where = [], args = [];
+      if (before > 0) { where.push("id < ?"); args.push(before); }
+      for (const word of q.split(/\s+/).filter(Boolean).slice(0, 5)) {
+        where.push("(summary LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\')");
+        const like = "%" + word.replace(/[\\%_]/g, m => "\\" + m) + "%"; args.push(like, like);
+      }
+      const rows = db.prepare(`SELECT id, at, user_id, username, action, coll, doc_id, summary, before, after FROM changelog ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY id DESC LIMIT ?`).all(...args, limit + 1);
+      const more = rows.length > limit;
+      return send(res, 200, { entries: rows.slice(0, limit).map(r => ({ ...r, before: parse(r.before), after: parse(r.after) })), more, keepDays: CHANGELOG_DAYS });
     }
 
     /* --- backup (admins) --- */
@@ -416,7 +559,7 @@ const server = http.createServer(async (req, res) => {
       if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can download backups.");
       const stamp = new Date().toISOString().slice(0, 10);
       res.writeHead(200, { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="traffic-ip-backup-${stamp}.json"`, "Cache-Control": "no-store" });
-      return res.end(JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: state.collections }, null, 1));
+      return res.end(JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: exportCollections() }, null, 1));
     }
 
     /* --- restore (admins): replace all app data in one step; accounts are left alone --- */
@@ -434,9 +577,9 @@ const server = http.createServer(async (req, res) => {
       }
       // keep a copy of what's being replaced, next to the automatic backups
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      fs.writeFileSync(path.join(BACKUP_DIR, `before-restore-${stamp}.json`), JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: state.collections }));
-      state.collections = next;
-      flushSync();
+      fs.writeFileSync(path.join(BACKUP_DIR, `before-restore-${stamp}.json`), JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: exportCollections() }));
+      tx(() => { Q.clearDocs.run(); for (const [name, docs] of Object.entries(next)) for (const [id, d] of Object.entries(docs)) putDoc(name, id, d); });
+      logChange(u, "restore", null, null, `Restored a backup from ${String(b.exported || "an unknown date").slice(0, 10)} (${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections)`);
       console.log(`Backup restored by ${u.username}: ${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections.`);
       setTimeout(() => broadcast({ type: "reload" }), 300);   // every open page reloads with the restored data
       schedulePings(1000);
@@ -464,25 +607,33 @@ const server = http.createServer(async (req, res) => {
       const [, c, id] = m;
       if (!SEG.test(c) || (id && !SEG.test(id)) || c.startsWith("_")) return err(res, 400, "invalid_argument", "Bad path.");
       if (req.method === "GET") {
-        if (!id) return send(res, 200, Object.entries(peek(c)).map(([k, v]) => ({ id: k, data: v })));
-        const d = own(peek(c), id) ? peek(c)[id] : undefined;
+        if (!id) {
+          // stream rows straight from the database (no re-parsing), so large inventories load quickly
+          const rows = Q.listDocs.all(c);
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+          return res.end("[" + rows.map(r => `{"id":${JSON.stringify(r.id)},"data":${r.data}}`).join(",") + "]");
+        }
+        const d = getDoc(c, id);
         return send(res, 200, d ? { id, exists: true, data: d } : { id, exists: false });
       }
       if (!id) return err(res, 400, "invalid_argument", "Missing id.");
       if (req.method === "PUT") {
-        const exists = own(peek(c), id);
+        const before = getDoc(c, id), exists = before !== undefined;
         if (!writeAllowed(u, c, id, exists ? "update" : "create")) return err(res, 403, "forbidden", "Your role doesn't allow that change.");
         const data = await readBody(req);
         const v = validate(c, id, data);
         if (v) return v.conflict ? err(res, 409, "conflict", v.conflict) : err(res, 400, "invalid_argument", v);
-        coll(c)[id] = data; save();
+        putDoc(c, id, data);
+        if (!exists || diffFields(before, data).length) logChange(u, exists ? "update" : "create", c, id, describeChange(c, before, data, id), before, data);
         broadcast({ type: "change", coll: c, id, data });
         if (c === "admin" && id === "settings") schedulePings(0);
         return send(res, 200, { ok: true });
       }
       if (req.method === "DELETE") {
         if (!writeAllowed(u, c, id, "delete")) return err(res, 403, "forbidden", "Your role doesn't allow that change.");
-        delete coll(c)[id]; save();
+        const before = getDoc(c, id);
+        delDoc(c, id);
+        if (before !== undefined) logChange(u, "delete", c, id, describeChange(c, before, null, id), before, null);
         broadcast({ type: "change", coll: c, id, data: null });
         return send(res, 200, { ok: true });
       }
@@ -497,5 +648,5 @@ const server = http.createServer(async (req, res) => {
 schedulePings(3000);
 server.listen(PORT, () => {
   console.log(`Traffic-IP v${VERSION} running on port ${PORT} (data in ${DATA_DIR})`);
-  if (!Object.keys(state.users).length) console.log("No accounts yet — open the app in a browser to create the owner account.");
+  if (!userCount()) console.log("No accounts yet — open the app in a browser to create the owner account.");
 });
