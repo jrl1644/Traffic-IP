@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-11** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-12** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -53,6 +53,7 @@ Node.js 20 or newer: `node server.js` (data goes to `./data`).
 | `TRUST_PROXY` | `false` | Set to `true` only when the app is behind your own reverse proxy, so sign-in limits use each person's real address instead of the proxy's. Leave it off otherwise. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is reached over **HTTPS**. |
 | `SESSION_DAYS` | `14` | How long a sign-in lasts. |
+| `PING_CONCURRENCY` | `16` | How many devices the Ping check pings at the same time. |
 | `TZ` | — | Time zone for log timestamps. |
 
 ---
@@ -76,6 +77,28 @@ Everyone can use **Account** in the header to change their own password or sign 
 **Roles are enforced by the server.** Someone without permission can't make a change even by bypassing the screens. The server also refuses duplicate IP addresses, even when two people save at the same moment.
 
 ---
+
+## Ping check
+
+**Admin → Settings → Ping check** turns on reachability checks. The server pings every device's IP at the interval you choose, and each intersection bar shows a circle:
+
+- 🟢 **Green:** all devices replied
+- 🟡 **Yellow:** some didn't reply (hover to see which)
+- 🔴 **Red:** none replied
+- ⚪ **Grey:** the check is off, or the intersection has no devices
+
+Results update live for everyone and aren't stored. **Check now** runs a check straight away.
+
+The pings come from the server, so devices must be reachable from wherever the container runs. The image includes `ping`, and Docker normally allows it without extra permissions. If Settings says the server **isn't allowed to send pings**, either:
+
+- add this to the service in `docker-compose.yml`:
+  ```yaml
+      sysctls:
+        net.ipv4.ping_group_range: "0 2147483647"
+  ```
+- or, with Docker older than 20.10, add `cap_add: [NET_RAW]` and `user: root`.
+
+Optional settings: `PING_CONCURRENCY` (default `16`) is how many devices are pinged at once.
 
 ## Data and backups
 

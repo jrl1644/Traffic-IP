@@ -147,6 +147,11 @@
   .brandslot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   header.haslogo{padding-left:calc(var(--logo-w,84px) + 18px)}
   .settinghead{margin:0 0 6px;font-size:15px}
+  .pingdot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;vertical-align:-1px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+  .pingdot.ok{background:#2e9d4f} .pingdot.some{background:#e0a100} .pingdot.none{background:#d32f2f} .pingdot.off{background:#c3c9c5;opacity:.7}
+  .pingdot.wait{background:#c3c9c5;animation:pingwait 1.2s ease-in-out infinite}
+  @keyframes pingwait{50%{opacity:.35}}
+  .ghead .pingdot{margin-right:2px}
   .logobox{display:flex;align-items:stretch;height:84px;border-radius:10px;background:var(--sign);margin-bottom:12px;overflow:hidden;color:#fff}
   .logobox img{height:100%;width:auto;object-fit:cover;display:block}
   .logobox .fake{display:flex;align-items:center;padding:0 16px;font-weight:700;font-size:18px}
@@ -461,6 +466,25 @@
         <button type="button" class="btn ghost del" id="logoRemove">Remove icon</button>
       </div>
 
+      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Ping check</h3>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Checks whether each device answers a ping and shows the result as a circle on every intersection bar:
+        <span class="pingdot ok" aria-hidden="true"></span> all devices reply ·
+        <span class="pingdot some" aria-hidden="true"></span> some don't ·
+        <span class="pingdot none" aria-hidden="true"></span> none reply ·
+        <span class="pingdot off" aria-hidden="true"></span> check off or nothing to check.</p>
+      <div class="notice claudeOnly">Pings are sent by the server of the self-hosted (Docker) version — a web page can't ping network devices, so here every circle stays grey.</div>
+      <div class="saOnly">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:10px"><input type="checkbox" id="pingEnabled" style="width:auto;min-height:0"> Check device IPs with ping</label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+          <label class="f" style="width:auto">Check every
+            <select id="pingInterval" style="width:auto"><option value="30">30 seconds</option><option value="60">1 minute</option><option value="120">2 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option><option value="900">15 minutes</option></select></label>
+          <label class="f" style="width:auto">Wait for a reply
+            <select id="pingTimeout" style="width:auto"><option value="1">1 second</option><option value="2">2 seconds</option><option value="3">3 seconds</option><option value="5">5 seconds</option></select></label>
+          <button type="button" class="btn" id="pingNow">Check now</button>
+        </div>
+        <div class="hint" id="pingStatus" style="margin-top:8px;min-height:18px"></div>
+      </div>
+
       <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Backup &amp; restore</h3>
       <p class="hint" style="margin:0 0 10px;font-size:14px">A backup holds all the app's data: intersections, devices, address pools, the Device list, roles &amp; privileges and the custom icon<span class="saOnly"> (user accounts and passwords aren't included and aren't changed by a restore)</span>. Backups work in both the claude.ai and self-hosted versions.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -541,7 +565,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-11";
+const APP_VERSION = "26.11.11-12";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -920,6 +944,7 @@ function render(){
     return `<section class="group ${isCol?"collapsed":""}">
       <div class="ghead" data-toggle="${k}">
         <span class="caret">▼</span>
+        ${pingDot(i)}
         <span class="gsigns">${streetChip(i.street1,hl)}<span class="amp">&amp;</span>${streetChip(i.street2,hl)}</span>
         <span class="gmeta">
         ${i.number?(()=>{ const dups = idHolders(i.number,[i.key]);
@@ -1650,7 +1675,7 @@ async function renderAdmin(){
     <div class="notice" style="margin-top:10px">Your sharing level: <b>${level}</b> · Your role: <b>${esc(roleCfg.roles[myRole()].label)}</b></div>
     <p class="hint" style="margin:8px 0 0">Roles control the buttons and forms in this app. A Contributor or Editor with technical skills could still change data outside the app's screens, so only share as Contributor or Editor with people you trust to edit.</p>`;
 }
-function openAdmin(){ showLogo(); showBackupControls(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
 /* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
 let brandLogo = "";
 const LOGO_MIN_RATIO = 1, LOGO_MAX_RATIO = 4;     // square up to 4× as wide as the header is tall
@@ -1717,9 +1742,59 @@ $("#logoFile").addEventListener("change", async e=>{
 $("#logoRemove").onclick = ()=> openConfirm("Remove the custom icon?", "The header will show just the app name again.", "Remove icon",
   async ()=>{ await db.doc("admin/branding").set({logo:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Custom icon removed"); });
 
+/* ---------- ping check ---------- */
+let pingCfg = {enabled:false, intervalSec:60, timeoutSec:1};
+let pingState = {available:null, error:"", running:false, lastRun:null, results:{}};
+function pingDot(inter){
+  const dot = (cls, title) => `<span class="pingdot ${cls}" title="${esc(title)}" role="img" aria-label="${esc(title)}"></span>`;
+  if(!window.__STANDALONE) return dot("off", "Ping check isn't available in this version");
+  if(!pingCfg.enabled) return dot("off", "Ping check is off (Admin → Settings)");
+  if(pingState.available===false) return dot("off", "Ping check can't run: " + (pingState.error || "unknown problem"));
+  const devs = inter.devices.filter(d=>d.ip);
+  if(!devs.length) return dot("off", "No devices to check");
+  const res = devs.map(d=>[d, pingState.results[String(d.ip).trim()]]);
+  const known = res.filter(([,r])=>r);
+  if(!known.length) return dot("wait", "Waiting for the first ping check…");
+  const down = known.filter(([,r])=>!r.ok);
+  const when = pingState.lastRun ? " · checked " + new Date(pingState.lastRun).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) : "";
+  if(!down.length) return dot("ok", `All ${known.length} device${known.length===1?"":"s"} replied${when}`);
+  const list = down.slice(0,4).map(([d])=>`${d.name} (${d.ip})`).join(", ") + (down.length>4 ? `, +${down.length-4} more` : "");
+  if(down.length===known.length) return dot("none", `No devices replied: ${list}${when}`);
+  return dot("some", `${down.length} of ${known.length} didn't reply: ${list}${when}`);
+}
+function showPingSettings(){
+  const ro = !canManage() || !window.__STANDALONE;
+  $("#pingEnabled").checked = pingCfg.enabled;
+  $("#pingInterval").value = String(pingCfg.intervalSec); if(!$("#pingInterval").value) $("#pingInterval").value = "60";
+  $("#pingTimeout").value = String(pingCfg.timeoutSec); if(!$("#pingTimeout").value) $("#pingTimeout").value = "1";
+  ["#pingEnabled","#pingInterval","#pingTimeout"].forEach(x=>$(x).disabled = ro);
+  $("#pingNow").disabled = !pingCfg.enabled || pingState.running;
+  const st = $("#pingStatus"); st.style.color = "";
+  if(!pingCfg.enabled){ st.textContent = "Ping check is off."; return; }
+  if(pingState.available===false){ st.style.color = "var(--danger)"; st.textContent = pingState.error + " See the README (Ping check) for how to allow it."; return; }
+  const all = Object.values(pingState.results), ok = all.filter(r=>r.ok).length;
+  st.textContent = pingState.running ? "Checking now…" : pingState.lastRun ? `Last check ${new Date(pingState.lastRun).toLocaleString()}: ${ok} of ${all.length} IP${all.length===1?"":"s"} replied.` : "Waiting for the first check…";
+}
+async function savePingSettings(){
+  const cfg = {enabled:$("#pingEnabled").checked, intervalSec:+$("#pingInterval").value, timeoutSec:+$("#pingTimeout").value};
+  try{ await db.doc("admin/settings").set({ping:cfg, updated:new Date().toISOString()}); pingCfg = cfg; toast(cfg.enabled ? "Ping check on" : "Ping check off"); }
+  catch(ex){ $("#aerr").textContent = writeError(ex); }
+  showPingSettings(); render();
+}
+["#pingEnabled","#pingInterval","#pingTimeout"].forEach(x=>$(x).addEventListener("change", savePingSettings));
+$("#pingNow").onclick = async ()=>{
+  try{ await window.__api("POST","/api/ping/run"); pingState.running = true; showPingSettings(); }
+  catch(ex){ $("#aerr").textContent = ex.message || "Couldn't start a check."; }
+};
+window.addEventListener("iid-ping", e=>{
+  const m = e.detail || {};
+  pingState = {available:m.available, error:m.error||"", running:!!m.running, lastRun:m.lastRun, results:m.results||{}};
+  render(); if($("#adminScrim").classList.contains("open")) showPingSettings();
+});
+
 /* ---------- backup & restore (all data) ---------- */
 const BACKUP_COLLS = ["intersections","devices","pools","deviceOptions","members"];
-const ADMIN_DOCS = ["config","branding"];
+const ADMIN_DOCS = ["config","branding","settings"];
 const today = () => new Date().toISOString().slice(0,10);
 async function readAll(){
   const collections = {};
@@ -2051,6 +2126,12 @@ update();
   }catch{}
   applyWriteMode();
   /* roles: the shared config + who has which role */
+  db.doc("admin/settings").onSnapshot(snap=>{
+    const p = (snap.exists && snap.data().ping) || {};
+    pingCfg = {enabled:!!p.enabled, intervalSec:+p.intervalSec||60, timeoutSec:+p.timeoutSec||1};
+    render(); if($("#adminScrim").classList.contains("open")) showPingSettings();
+  }, ()=>{});
+  if(window.__STANDALONE) window.__api("GET","/api/ping").then(m=>window.dispatchEvent(new CustomEvent("iid-ping",{detail:m}))).catch(()=>{});
   db.doc("admin/branding").onSnapshot(snap=>{ brandLogo = (snap.exists && typeof snap.data().logo==="string" && snap.data().logo.startsWith("data:image/")) ? snap.data().logo : ""; showLogo(); }, ()=>{});
   db.doc("admin/config").onSnapshot(snap=>{
     const c = snap.exists ? snap.data() : {};

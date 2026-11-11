@@ -4,6 +4,10 @@ ENV NODE_ENV=production \
     PORT=8187 \
     DATA_DIR=/data
 
+# ping for the optional Ping check (Admin → Settings). iputils' ping can run as a
+# normal user through unprivileged ICMP sockets, which Docker allows by default.
+RUN apk add --no-cache iputils
+
 WORKDIR /app
 COPY server.js ./
 COPY public ./public

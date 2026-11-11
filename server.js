@@ -1,11 +1,13 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-11";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-12";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 20+ built-ins only.
 "use strict";
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const net = require("net");
+const { execFile } = require("child_process");
 
 const PORT = parseInt(process.env.PORT || "8187", 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -124,6 +126,59 @@ if (!Object.keys(state.users).length && process.env.ADMIN_USERNAME && process.en
 }
 
 const leases = new Map();   // in memory only
+
+/* ------------------------------------------------------------------ ping checks
+   Admins turn this on under Settings. The server pings every device IP with the system
+   "ping" command (never through a shell; the address is validated first) and tells every
+   open page the results. Nothing is stored: results live in memory. */
+const PING_BIN = process.env.PING_BIN || "ping";
+const PING_CONCURRENCY = Math.max(1, Math.min(64, parseInt(process.env.PING_CONCURRENCY || "16", 10)));
+const ping = { results: {}, lastRun: null, running: false, available: null, error: "", timer: null, manualAt: 0 };
+function pingSettings() {
+  const st = peek("admin").settings?.ping || {};
+  return {
+    enabled: !!st.enabled,
+    intervalSec: Math.min(3600, Math.max(30, parseInt(st.intervalSec, 10) || 60)),
+    timeoutSec: Math.min(10, Math.max(1, parseInt(st.timeoutSec, 10) || 1)),
+  };
+}
+function pingOne(ip, timeoutSec) {
+  return new Promise(resolve => {
+    if (!net.isIP(ip)) return resolve({ ok: false, error: "not an IP address" });
+    const args = ["-n", "-c", "1", "-W", String(timeoutSec), ip];
+    execFile(PING_BIN, args, { timeout: (timeoutSec + 2) * 1000, windowsHide: true }, (e, out, errOut) => {
+      const text = String(out || "") + String(errOut || "");
+      const m = text.match(/time[=<]\s*([\d.]+)\s*ms/i);
+      if (!e) return resolve({ ok: true, rttMs: m ? parseFloat(m[1]) : null });
+      if (e.code === "ENOENT") return resolve({ ok: false, fatal: "The ping command isn't installed on this server." });
+      if (/permission|not permitted|socket: Operation/i.test(text)) return resolve({ ok: false, fatal: "This server isn't allowed to send pings. " + text.trim().split("\n").pop() });
+      resolve({ ok: false });
+    });
+  });
+}
+function pingPayload() {
+  const st = pingSettings();
+  return { type: "ping", enabled: st.enabled, intervalSec: st.intervalSec, timeoutSec: st.timeoutSec, available: ping.available, error: ping.error, running: ping.running, lastRun: ping.lastRun, results: ping.results };
+}
+async function runPings() {
+  if (ping.running) return;
+  const st = pingSettings();
+  const ips = [...new Set(Object.values(peek("devices")).map(d => String(d.ip || "").trim()).filter(ip => net.isIP(ip)))];
+  ping.running = true; broadcast({ ...pingPayload() });
+  const results = {}; let i = 0, fatal = "";
+  async function worker() { while (i < ips.length && !fatal) { const ip = ips[i++]; const r = await pingOne(ip, st.timeoutSec); if (r.fatal) { fatal = r.fatal; break; } results[ip] = { ok: r.ok, rttMs: r.rttMs ?? null, at: Date.now() }; } }
+  await Promise.all(Array.from({ length: Math.min(PING_CONCURRENCY, ips.length || 1) }, worker));
+  ping.running = false;
+  if (fatal) { ping.available = false; ping.error = fatal; ping.results = {}; console.warn("Ping checks unavailable: " + fatal); }
+  else { ping.available = true; ping.error = ""; ping.results = results; ping.lastRun = new Date().toISOString(); }
+  broadcast(pingPayload());
+}
+function schedulePings(delayMs) {
+  clearTimeout(ping.timer);
+  const st = pingSettings();
+  if (!st.enabled) { if (Object.keys(ping.results).length || ping.lastRun) { ping.results = {}; ping.lastRun = null; broadcast(pingPayload()); } return; }
+  ping.timer = setTimeout(async () => { await runPings(); schedulePings(pingSettings().intervalSec * 1000); }, delayMs ?? 0);
+}
 
 /* ------------------------------------------------------------------ live updates (Server-Sent Events) */
 const clients = new Set();
@@ -277,6 +332,15 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    /* --- ping status (everyone signed in) and "check now" --- */
+    if (p === "/api/ping" && req.method === "GET") return send(res, 200, pingPayload());
+    if (p === "/api/ping/run" && req.method === "POST") {
+      if (!pingSettings().enabled) return err(res, 400, "invalid_argument", "Ping checks are turned off in Settings.");
+      if (Date.now() - ping.manualAt < 10000 || ping.running) return send(res, 200, { ok: true, queued: false });
+      ping.manualAt = Date.now(); schedulePings(0);
+      return send(res, 200, { ok: true, queued: true });
+    }
+
     /* --- users (admins) --- */
     if (p === "/api/users" || p.startsWith("/api/users/")) {
       if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can manage accounts.");
@@ -346,6 +410,7 @@ const server = http.createServer(async (req, res) => {
       flushSync();
       console.log(`Backup restored by ${u.username}: ${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections.`);
       setTimeout(() => broadcast({ type: "reload" }), 300);   // every open page reloads with the restored data
+      schedulePings(1000);
       return send(res, 200, { ok: true });
     }
 
@@ -383,6 +448,7 @@ const server = http.createServer(async (req, res) => {
         if (v) return v.conflict ? err(res, 409, "conflict", v.conflict) : err(res, 400, "invalid_argument", v);
         coll(c)[id] = data; save();
         broadcast({ type: "change", coll: c, id, data });
+        if (c === "admin" && id === "settings") schedulePings(0);
         return send(res, 200, { ok: true });
       }
       if (req.method === "DELETE") {
@@ -399,6 +465,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+schedulePings(3000);
 server.listen(PORT, () => {
   console.log(`Traffic-IP v${VERSION} running on port ${PORT} (data in ${DATA_DIR})`);
   if (!Object.keys(state.users).length) console.log("No accounts yet — open the app in a browser to create the owner account.");

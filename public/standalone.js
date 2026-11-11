@@ -110,6 +110,7 @@
       if (m.type === "change") apply(m.coll, m.id, m.data);
       if (m.type === "reload") location.reload();
       if (m.type === "users") window.dispatchEvent(new Event("iid-users-changed"));
+      if (m.type === "ping") window.dispatchEvent(new CustomEvent("iid-ping", { detail: m }));
     };
     es.onerror = () => {
       // after a reconnect, refresh everything we've loaded in case we missed changes
