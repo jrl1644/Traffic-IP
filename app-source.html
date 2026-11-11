@@ -283,7 +283,6 @@
       <button class="btn ghost" id="colBtn" aria-haspopup="true" aria-expanded="false">Columns ▾</button>
       <div id="colMenu" class="colmenu hidden" role="menu"></div>
     </span>
-    <button class="btn ghost" id="csvBtn" title="Copy the filtered list as CSV">Copy CSV</button>
   </div>
 
   <div id="list"></div>
@@ -587,7 +586,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-19";
+const APP_VERSION = "26.11.11-20";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -604,13 +603,13 @@ const expanded = new Set();     // intersections the viewer has opened — every
 const PERMS = [
   ["devices.add","Add devices"], ["devices.edit","Edit devices"], ["devices.remove","Remove devices"],
   ["inters.add","Add intersections"], ["inters.edit","Edit intersections"], ["inters.remove","Remove intersections"],
-  ["devlist.manage","Manage the Device list"], ["pools.manage","Manage address pools"], ["export.csv","Copy CSV export"],
+  ["devlist.manage","Manage the Device list"], ["pools.manage","Manage address pools"],
 ];
 const ROLE_ORDER = ["admin","technician","viewer"];
 const DEFAULT_ROLES = {
   admin:      {label:"Admin",      perms:Object.fromEntries(PERMS.map(([k])=>[k,true]))},
-  technician: {label:"Technician", perms:{"devices.add":true,"devices.edit":true,"devices.remove":false,"inters.add":true,"inters.edit":true,"inters.remove":false,"devlist.manage":false,"pools.manage":false,"export.csv":true}},
-  viewer:     {label:"Viewer",     perms:{"export.csv":true}},
+  technician: {label:"Technician", perms:{"devices.add":true,"devices.edit":true,"devices.remove":false,"inters.add":true,"inters.edit":true,"inters.remove":false,"devlist.manage":false,"pools.manage":false}},
+  viewer:     {label:"Viewer",     perms:{}},
 };
 let roleCfg = {roles:DEFAULT_ROLES, defaultRole:"viewer", ownerId:null};
 let members = new Map();          // user id -> {role, added}
@@ -624,7 +623,7 @@ function myRole(){
 }
 function can(perm){
   if(perm==="admin.menu") return myRole()==="admin";
-  if(!shareWrite && perm!=="export.csv") return false;     // claude.ai sharing: view-only
+  if(!shareWrite) return false;                            // claude.ai sharing: view-only
   if(!me.isOwner && !rolesLoaded) return false;             // wait for roles before offering changes
   if(myRole()==="admin") return true;
   return !!roleCfg.roles[myRole()]?.perms?.[perm];
@@ -999,7 +998,6 @@ function applyWriteMode(){
   show("#addInterBtn", can("inters.add"));
   show("#devListBtn", can("devlist.manage")); show("#devListForm", can("devlist.manage")); show("#manageDevBtn", can("devlist.manage"));
   show("#poolsBtn", can("pools.manage")); show("#poolForm", can("pools.manage"));
-  show("#csvBtn", can("export.csv"));
   show("#adminBtn", can("admin.menu"));
   $("#roleChip").textContent = (roleCfg.roles[myRole()]?.label || "") + (shareWrite ? "" : " · view only");
   $("#roleChip").classList.toggle("hidden", !rolesLoaded && !me.isOwner);
@@ -1050,18 +1048,6 @@ $("#list").addEventListener("click", e=>{
     t.parentElement.classList.toggle("collapsed");
   }
 });
-
-$("#csvBtn").onclick = ()=>{
-  // quote every cell; neutralise values a spreadsheet would treat as a formula (=, +, -, @, tab, return)
-  const q = v => { let t = String(v??""); if(/^[=+\-@\t\r]/.test(t)) t = "'" + t; return `"${t.replace(/"/g,'""')}"`; };
-  const rows = ["Street 1,Street 2,Intersection ID,GPS,Device,Type,IP address,IP pool,MAC,Device notes"];
-  let n=0;
-  filtered().forEach(({inter:i,devices:devs})=>{
-    if(!devs.length){ rows.push([plainStreet(i.street1),plainStreet(i.street2),i.number,gpsText(i.gps),"","","","","",""].map(q).join(",")); return; }
-    devs.forEach(d=>{ n++; rows.push([plainStreet(i.street1),plainStreet(i.street2),i.number,gpsText(i.gps),d.name,d.type,d.ip,typePool(d.type)?.name||"",d.mac,d.notes].map(q).join(",")); });
-  });
-  navigator.clipboard?.writeText(rows.join("\n")).then(()=>toast(`Copied ${n} devices as CSV — paste into Excel or Sheets`)).catch(()=>toast("Clipboard not available here"));
-};
 
 /* ---------- intersection add / edit ---------- */
 const iform = $("#interForm");

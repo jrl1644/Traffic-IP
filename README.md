@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-19** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-20** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -68,7 +68,7 @@ The app detects the device it runs on. iPhones and other phones (and any window 
 Open **Admin** in the header (Admins only).
 
 - **Accounts & roles:** create accounts with a temporary password, set each person's role, reset passwords, and disable or delete accounts. Disabling or deleting someone signs them out straight away.
-- **Role privileges:** tick what **Technicians** and **Viewers** may do (add/edit/remove devices and intersections, manage the Device list and address pools, copy the CSV export). Admins can always do everything.
+- **Role privileges:** tick what **Technicians** and **Viewers** may do (add/edit/remove devices and intersections, manage the Device list and address pools). Admins can always do everything.
 - **Settings → Backup & Restore:** download all data as one `.json` file, or restore a backup (replaces all data; type RESTORE to confirm). **Reset database** gives a clean start: it deletes all intersections, devices, address pools and the Device list, and clears the custom icon and settings (type RESET to confirm). Accounts and role privileges are kept. A copy of the deleted data is saved in `/data/backups/before-reset-….json`. User accounts and passwords aren't included and aren't changed. Before a restore, the server saves a copy of the replaced data in `/data/backups/before-restore-….json`. Backups from the claude.ai version of the app can be restored here too.
 - **Settings → Custom icon:** upload your organization's logo or a photo (PNG, JPG, SVG or WebP). It's resized and cropped automatically to fill the top-left corner of the header, shown on the sign-in screen, and used as the app's icon for browser tabs, bookmarks and iPhone/Android **Add to Home Screen** (a built-in Traffic-IP icon is used until you upload one).
 
@@ -137,7 +137,7 @@ docker compose up -d
 - Wrong-password attempts are limited (10 per username and 50 per address every 10 minutes). Sign-in takes the same time whether or not a username exists.
 - Every change is recorded in the change log with who made it and when.
 - Roles are checked by the server on every change, duplicate IPs are refused by the server, and requests that don't come from the app itself are rejected.
-- Pages are sent with a strict Content-Security-Policy and other protective headers. Copy CSV neutralises cells that a spreadsheet would run as formulas.
+- Pages are sent with a strict Content-Security-Policy and other protective headers.
 - **First start:** whoever opens the app first creates the owner account. Do that (or set `ADMIN_USERNAME`/`ADMIN_PASSWORD`) **before** making the app reachable by others.
 - Use HTTPS (`COOKIE_SECURE=true` behind a reverse proxy) for anything beyond your local network.
 

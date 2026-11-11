@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-19";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-20";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -173,11 +173,11 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
 /* ------------------------------------------------------------------ roles */
-const PERMS = ["devices.add","devices.edit","devices.remove","inters.add","inters.edit","inters.remove","devlist.manage","pools.manage","export.csv"];
+const PERMS = ["devices.add","devices.edit","devices.remove","inters.add","inters.edit","inters.remove","devlist.manage","pools.manage"];
 const DEFAULT_ROLES = {
   admin: Object.fromEntries(PERMS.map(p => [p, true])),
-  technician: { "devices.add":true,"devices.edit":true,"devices.remove":false,"inters.add":true,"inters.edit":true,"inters.remove":false,"devlist.manage":false,"pools.manage":false,"export.csv":true },
-  viewer: { "export.csv": true },
+  technician: { "devices.add":true,"devices.edit":true,"devices.remove":false,"inters.add":true,"inters.edit":true,"inters.remove":false,"devlist.manage":false,"pools.manage":false },
+  viewer: {},
 };
 const ROLES = ["admin", "technician", "viewer"];
 const ROLE_LABEL = { admin: "Admin", technician: "Technician", viewer: "Viewer" };
@@ -188,7 +188,7 @@ function rolePerms(role) {
 }
 function userRole(u) { return u.owner ? "admin" : (ROLES.includes(u.role) ? u.role : "viewer"); }
 function can(u, perm) { return userRole(u) === "admin" || !!rolePerms(userRole(u))[perm]; }
-function canWriteAny(u) { const r = userRole(u); return r === "admin" || PERMS.some(p => p !== "export.csv" && rolePerms(r)[p]); }
+function canWriteAny(u) { const r = userRole(u); return r === "admin" || PERMS.some(p => rolePerms(r)[p]); }
 
 /* ------------------------------------------------------------------ passwords & sessions */
 function hashPassword(pw, salt = crypto.randomBytes(16).toString("hex")) {
