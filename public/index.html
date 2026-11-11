@@ -129,6 +129,17 @@
   body.mobile .grid2{grid-template-columns:1fr}
   body.mobile .toast{bottom:calc(20px + env(safe-area-inset-bottom));max-width:92vw;text-align:center}
   /* modal */
+  .group.collapsed .printbtn{display:none}
+  .printcols{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:4px 0 10px}
+  .printcols label{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+  .printcols input{width:auto;min-height:0}
+  #printArea{display:none}
+  @media print{
+    @page{margin:14mm}
+    body.printing > *:not(#printArea){display:none!important}
+    body.printing{background:#fff!important;color:#000!important}
+    body.printing #printArea{display:block}
+  }
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:10}
   .scrim.open{display:flex}
   .modal{background:var(--panel);border-radius:12px;width:100%;max-width:560px;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
@@ -548,6 +559,22 @@
   </form>
 </div>
 
+<!-- Print an intersection -->
+<div class="scrim" id="printScrim">
+  <div class="modal" style="max-width:560px">
+    <h2>Print <span id="printWhat" style="font-weight:600"></span></h2>
+    <p class="hint" style="margin:0 0 6px;font-size:14px">Choose the columns to print. The page has the intersection as its heading and lists every device there.</p>
+    <div class="printcols" id="printCols"></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:4px"><input type="checkbox" id="printInfo" style="width:auto;min-height:0" checked> Include intersection ID, GPS and notes</label>
+    <div class="ferr" id="printErr"></div>
+    <div class="actions">
+      <button class="btn" id="printCancel">Cancel</button>
+      <button class="btn claudeOnly" id="printSave" title="Save the printable page as a file you can open and print">Save as file</button>
+      <button class="btn primary" id="printGo">Print</button>
+    </div>
+  </div>
+</div>
+
 <!-- Confirm -->
 <div class="scrim" id="delScrim">
   <div class="modal">
@@ -567,6 +594,7 @@
 <datalist id="streetList"></datalist>
 <datalist id="typeList"></datalist>
 <div class="toast" id="toast"></div>
+<div id="printArea"></div>
 
 <script src="/standalone.js"></script>
 <script>
@@ -594,7 +622,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-20";
+const APP_VERSION = "26.11.11-21";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -981,10 +1009,11 @@ function render(){
                              : `<span class="idbadge">${hl(i.number,"street")}</span>`; })():""}
         ${i.gps?`<a class="maplink" href="${mapUrl(i.gps)}" target="_blank" rel="noopener" title="${esc(gpsText(i.gps))} — open in Google Maps">📍 Map</a>`:""}
         <span class="count">${filt && devs.length!==i.devices.length ? `${devs.length} of ${i.devices.length} devices match` : `${i.devices.length} device${i.devices.length===1?"":"s"}`}</span>
-        ${(can("devices.add")||can("inters.edit"))?`<span class="gact">
+        <span class="gact">
+          <button class="btn ghost printbtn" data-print="${k}" title="Print this intersection">Print</button>
           ${can("devices.add")?`<button class="btn ghost" data-addat="${k}" title="Add a device at this intersection">+ Device</button>`:""}
           ${can("inters.edit")?`<button class="btn ghost" data-editinter="${k}">Edit</button>`:""}
-</span>`:""}
+</span>
         </span>
       </div>
       <div class="gbody">
@@ -1042,12 +1071,13 @@ $("#addInterBtn").onclick = ()=>openInter();
 
 $("#list").addEventListener("click", e=>{
   if(e.target.closest("a.maplink")) return;   // let the map link open without toggling the card
-  const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-toggle]");
+  const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-print],[data-toggle]");
   if(!t) return;
   const ds = t.dataset;
   if(ds.edit) return openEdit(devices.find(d=>d.id===ds.edit));
   if(ds.addat) return openEdit(null, ds.addat);
   if(ds.editinter) return openInter(inters.get(ds.editinter));
+  if(ds.print) return openPrint(inters.get(ds.print));
   if(ds.addinter) return openInter();
   if(ds.copy){ navigator.clipboard?.writeText(ds.copy).then(()=>toast("Copied "+ds.copy)).catch(()=>{}); return; }
   if(ds.toggle){
@@ -1056,6 +1086,85 @@ $("#list").addEventListener("click", e=>{
     t.parentElement.classList.toggle("collapsed");
   }
 });
+
+/* ---------- print one intersection ---------- */
+const PRINT_KEY = "traffic-ip-print-columns";
+const PRINT_VAL = {
+  name: d => d.name, type: d => d.type, ip: d => d.ip, pool: d => typePool(d.type)?.name || "",
+  mac: d => d.mac, notes: d => d.notes, created: d => fmtDate(d.created), updated: d => fmtDate(d.updated),
+};
+let printInter = null;
+function printColsChosen(){ return COLUMNS.filter(c=>$("#printCols").querySelector(`input[value="${c.key}"]`)?.checked); }
+function openPrint(i){
+  if(!i) return;
+  printInter = i;
+  let chosen; try{ chosen = JSON.parse(localStorage.getItem(PRINT_KEY)||"null"); }catch{}
+  const on = new Set(Array.isArray(chosen) && chosen.length ? chosen : [...visibleCols]);
+  $("#printWhat").textContent = interLabel(i);
+  $("#printCols").innerHTML = COLUMNS.map(c=>`<label><input type="checkbox" value="${c.key}" ${on.has(c.key)?"checked":""}> ${esc(c.label)}</label>`).join("");
+  $("#printErr").textContent = "";
+  $("#printScrim").classList.add("open");
+}
+const closePrint = () => { $("#printScrim").classList.remove("open"); printInter = null; };
+function printableHtml(i, cols, withInfo){
+  const nameOf = s => esc(plainStreet(s));
+  const info = withInfo ? [
+    i.number ? `<div><b>Intersection ID:</b> ${esc(i.number)}</div>` : "",
+    i.gps ? `<div><b>GPS:</b> ${esc(gpsText(i.gps))}</div>` : "",
+    i.notes ? `<div><b>Notes:</b> ${esc(i.notes)}</div>` : "",
+  ].join("") : "";
+  const devs = i.devices;
+  const who = me.name || me.username || "";
+  return `<div class="pr">
+    <h1 class="pr-title">${nameOf(i.street1)} &amp; ${nameOf(i.street2)}</h1>
+    ${info ? `<div class="pr-info">${info}</div>` : ""}
+    ${devs.length ? `<table class="pr-table"><thead><tr><th class="pr-n">#</th>${cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead>
+      <tbody>${devs.map((d,n)=>`<tr><td class="pr-n">${n+1}</td>${cols.map(c=>`<td class="pr-${c.key}">${esc(PRINT_VAL[c.key](d) || "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+      : `<p>No devices at this intersection.</p>`}
+    <div class="pr-foot">${devs.length} device${devs.length===1?"":"s"} · Printed ${esc(new Date().toLocaleString(undefined,{year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}${who?` by ${esc(who)}`:""} · Traffic-IP v${esc(APP_VERSION)}</div>
+  </div>`;
+}
+const PRINT_CSS = `
+  .pr{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#000;font-size:11pt;line-height:1.35}
+  .pr-title{font-size:20pt;margin:0 0 6pt;padding-bottom:6pt;border-bottom:2pt solid #000}
+  .pr-info{margin:0 0 10pt;display:grid;gap:2pt}
+  .pr-table{width:100%;border-collapse:collapse}
+  .pr-table th{text-align:left;font-size:9pt;text-transform:uppercase;letter-spacing:.04em;border-bottom:1.2pt solid #000;padding:4pt 6pt}
+  .pr-table td{padding:5pt 6pt;border-bottom:.6pt solid #999;vertical-align:top;overflow-wrap:anywhere}
+  .pr-table tr{break-inside:avoid}
+  .pr-table thead{display:table-header-group}
+  .pr-n{width:1%;color:#555;text-align:right}
+  .pr-ip,.pr-mac{font-family:ui-monospace,Menlo,Consolas,monospace;white-space:nowrap}
+  .pr-name{font-weight:600}
+  .pr-foot{margin-top:12pt;font-size:8.5pt;color:#555}`;
+function printChoice(){
+  const cols = printColsChosen();
+  if(!cols.length){ $("#printErr").textContent = "Pick at least one column."; return null; }
+  try{ localStorage.setItem(PRINT_KEY, JSON.stringify(cols.map(c=>c.key))); }catch{}
+  return {cols, withInfo: $("#printInfo").checked};
+}
+$("#printGo").onclick = ()=>{
+  const i = printInter, ch = printChoice(); if(!i || !ch) return;
+  $("#printArea").innerHTML = `<style>${PRINT_CSS}</style>` + printableHtml(i, ch.cols, ch.withInfo);
+  closePrint();
+  const title = document.title; document.title = `${interLabel(i)} — Traffic-IP`;
+  document.body.classList.add("printing");
+  const done = () => { document.body.classList.remove("printing"); document.title = title; $("#printArea").innerHTML = ""; window.removeEventListener("afterprint", done); };
+  window.addEventListener("afterprint", done);
+  setTimeout(()=>{ try{ window.print(); }catch{} setTimeout(()=>{ if(document.body.classList.contains("printing") && !window.matchMedia("print").matches) done(); }, 1500); }, 50);
+};
+$("#printSave").onclick = async ()=>{
+  const i = printInter, ch = printChoice(); if(!i || !ch) return;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(interLabel(i))} — Traffic-IP</title><style>${PRINT_CSS} body{margin:24px} @page{margin:14mm} @media print{body{margin:0}}</style><\/head><body>${printableHtml(i, ch.cols, ch.withInfo)}<\/body><\/html>`;
+  try{
+    const dl = await window.claude?.use("downloads");
+    if(!dl) return $("#printErr").textContent = "Saving files isn't available in this view.";
+    await dl.save({filename:`${interLabel(i).replace(/[^\w&.-]+/g," ").trim().replace(/\s+/g,"-")}.html`, data:html});
+    closePrint(); toast("Saved — open the file and print it from your browser");
+  }catch(ex){ $("#printErr").textContent = ex?.code==="declined" ? "Save cancelled." : "Couldn't save the file."; }
+};
+$("#printCancel").onclick = closePrint;
+$("#printScrim").addEventListener("click", e=>{ if(e.target.id==="printScrim") closePrint(); });
 
 /* ---------- intersection add / edit ---------- */
 const iform = $("#interForm");
@@ -1468,7 +1577,7 @@ $("#confirmDel").onclick = async ()=>{
 };
 
 document.addEventListener("keydown", e=>{
-  if(e.key==="Escape"){ if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#devListScrim").classList.contains("open")) return closeDevList(); if($("#adminScrim").classList.contains("open")) return closeAdmin(); closeEdit(); closeInter(); closePools(); }
+  if(e.key==="Escape"){ if($("#printScrim").classList.contains("open")) return closePrint(); if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#devListScrim").classList.contains("open")) return closeDevList(); if($("#adminScrim").classList.contains("open")) return closeAdmin(); closeEdit(); closeInter(); closePools(); }
   if(e.key==="/" && !["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)){ e.preventDefault(); $("#qi").focus(); }
 });
 ["#editScrim","#interScrim","#delScrim","#poolScrim","#devListScrim","#adminScrim"].forEach(s=>$(s).addEventListener("mousedown",e=>{ if(e.target===$(s)) $(s).classList.remove("open"); }));

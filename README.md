@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-20** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-21** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -171,6 +171,7 @@ To pin a specific version, change `#main` in `docker-compose.yml` to a tag or co
 
 ## Notes
 
+- **Print:** expand an intersection and click **Print** for a clean page with the intersection as its heading. Pick which columns to print; your choice is remembered.
 - Street-sign fonts load from Google Fonts when the browser is online. Without internet access the app works the same, using the system font.
 - **📍 Map** and **Pick on map** open Google Maps in the browser, which needs internet access.
 - `build.py` regenerates `public/index.html` from the app source if you change it.
