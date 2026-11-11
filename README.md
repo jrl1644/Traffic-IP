@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 11.11.26-4** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
+**Version 11.11.26-5** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -66,6 +66,7 @@ Open **Admin** in the header (Admins only).
 
 - **Accounts & roles:** create accounts with a temporary password, set each person's role, reset passwords, and disable or delete accounts. Disabling or deleting someone signs them out straight away.
 - **Role privileges:** tick what **Technicians** and **Viewers** may do (add/edit/remove devices and intersections, manage the Device list and address pools, copy the CSV export). Admins can always do everything.
+- **Branding:** upload your organization's logo (PNG, JPG, SVG or WebP). It's resized automatically and shown at the top left of the header for everyone.
 - **Access & sharing:** a summary of how access works, plus **Download backup**.
 
 Everyone can use **Account** in the header to change their own password or sign out.

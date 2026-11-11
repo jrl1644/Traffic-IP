@@ -82,6 +82,7 @@
   body.mobile header{padding:calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 10px calc(14px + env(safe-area-inset-left));gap:10px;position:sticky;top:0;z-index:6;flex-wrap:nowrap}
   body.mobile main{padding:14px calc(12px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
   body.mobile header h1{font-size:18px;min-width:0}
+  body.mobile .brandlogo{height:30px;max-width:110px}
   body.mobile header h1 small{display:none}
   body.mobile #menuBtn{flex:none;min-height:40px}
   /* header actions fold into a menu */
@@ -139,6 +140,10 @@
   .ferr{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
   .hint{font-size:12px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
   .colwrap{position:relative}
+  .brandlogo{height:42px;max-width:180px;width:auto;object-fit:contain;display:block;flex:none;border-radius:4px}
+  .logobox{display:flex;align-items:center;justify-content:center;min-height:90px;border:1px dashed var(--line);border-radius:10px;background:var(--sign);margin-bottom:12px;padding:12px}
+  .logobox img{height:42px;max-width:180px;object-fit:contain}
+  .logobox .none{color:rgba(255,255,255,.75);font-size:14px}
   body:not(.standalone) .saOnly{display:none!important}
   body.standalone .claudeOnly{display:none!important}
   .acctrow .who b{font-weight:600}
@@ -192,6 +197,7 @@
 </head>
 <body>
 <header>
+  <img id="brandLogo" class="brandlogo hidden" alt="Logo">
   <h1>Traffic-IP <span class="ver" id="appVersion" title="App version (MM.DD.YY-revision)"></span><small>IP-based field devices, organized by street intersection</small></h1>
   <button class="btn mobileOnly" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions">☰ Menu</button>
   <nav id="hdrActions">
@@ -401,6 +407,7 @@
     <div class="tabs" role="tablist">
       <button class="tab active" data-tab="people" role="tab"><span class="claudeOnly">People &amp; roles</span><span class="saOnly">Accounts &amp; roles</span></button>
       <button class="tab" data-tab="roles" role="tab">Role privileges</button>
+      <button class="tab" data-tab="branding" role="tab">Branding</button>
       <button class="tab" data-tab="access" role="tab">Access &amp; sharing</button>
     </div>
     <div class="notice hidden" id="adminRO">You can view these settings. Only the owner and people shared as <b>Editor</b> on claude.ai can change them.</div>
@@ -436,6 +443,15 @@
     <section class="tabpane hidden" data-pane="roles">
       <p class="hint" style="margin:0 0 10px;font-size:14px">Tick what each role may do. Admins can always do everything.</p>
       <div style="overflow:auto"><table class="ptable" id="roleMatrix"></table></div>
+    </section>
+
+    <section class="tabpane hidden" data-pane="branding">
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Your logo appears at the top left of the header for everyone. It's resized automatically to fit. PNG, JPG, SVG or WebP. A logo with a transparent background looks best on the green bar.</p>
+      <div class="logobox" id="logoPreview"><span class="none">No logo yet</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <label class="btn" id="logoPick" style="cursor:pointer">Upload logo…<input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></label>
+        <button type="button" class="btn ghost del" id="logoRemove">Remove logo</button>
+      </div>
     </section>
 
     <section class="tabpane hidden" data-pane="access">
@@ -510,7 +526,7 @@
 })();
 
 /* App version: MM.DD.YY-revision. Bump on every change. */
-const APP_VERSION = "11.11.26-4";
+const APP_VERSION = "11.11.26-5";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1616,7 +1632,51 @@ async function renderAdmin(){
     <div class="notice" style="margin-top:10px">Your sharing level: <b>${level}</b> · Your role: <b>${esc(roleCfg.roles[myRole()].label)}</b></div>
     <p class="hint" style="margin:8px 0 0">Roles control the buttons and forms in this app. A Contributor or Editor with technical skills could still change data outside the app's screens, so only share as Contributor or Editor with people you trust to edit.</p>`;
 }
-function openAdmin(){ $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+function openAdmin(){ showLogo(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+/* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
+let brandLogo = "";
+function showLogo(){
+  const img = $("#brandLogo");
+  if(brandLogo){ img.src = brandLogo; img.classList.remove("hidden"); } else { img.removeAttribute("src"); img.classList.add("hidden"); }
+  $("#logoPreview").innerHTML = brandLogo ? `<img alt="Current logo" src="${esc(brandLogo)}">` : `<span class="none">No logo yet</span>`;
+  $("#logoRemove").classList.toggle("hidden", !brandLogo || !canManage());
+  $("#logoPick").classList.toggle("hidden", !canManage());
+}
+/* fit the image to the header (shown 42px tall; stored at 2x for sharp screens) */
+function shrinkLogo(file){
+  return new Promise((resolve, reject)=>{
+    if(file.size > 8*1024*1024) return reject(new Error("That file is over 8 MB — pick a smaller image."));
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = ()=>{
+      URL.revokeObjectURL(url);
+      const H = 96, MAXW = 420;
+      let w = img.naturalWidth || 300, h = img.naturalHeight || 100;
+      const scale = Math.min(H / h, MAXW / w, 4);
+      w = Math.max(1, Math.round(w*scale)); h = Math.max(1, Math.round(h*scale));
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high"; ctx.drawImage(img, 0, 0, w, h);
+      let data = c.toDataURL("image/png");
+      if(data.length > 150000) data = c.toDataURL("image/webp", 0.92);
+      if(data.length > 150000) data = c.toDataURL("image/jpeg", 0.9);
+      if(data.length > 200000) return reject(new Error("That image is too detailed to use as a logo — try a simpler one."));
+      resolve(data);
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error("That file couldn't be read as an image.")); };
+    img.src = url;
+  });
+}
+$("#logoFile").addEventListener("change", async e=>{
+  const f = e.target.files[0]; e.target.value = ""; if(!f) return;
+  $("#aerr").textContent = "";
+  try{
+    const data = await shrinkLogo(f);
+    await db.doc("admin/branding").set({logo:data, updated:new Date().toISOString()});
+    brandLogo = data; showLogo(); toast("Logo updated");
+  }catch(ex){ $("#aerr").textContent = ex?.message && !ex.code ? ex.message : (ex?.code==="invalid_argument" && !window.__STANDALONE ? "Only the owner and Editors can change the logo." : writeError(ex)); }
+});
+$("#logoRemove").onclick = ()=> openConfirm("Remove the logo?", "The header will show just the app name again.", "Remove logo",
+  async ()=>{ await db.doc("admin/branding").set({logo:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Logo removed"); });
+
 function closeAdmin(){ $("#adminScrim").classList.remove("open"); $("#adminHits").classList.add("hidden"); $("#adminSearch").value=""; }
 $("#adminBtn").onclick = openAdmin;
 $("#closeAdmin").onclick = closeAdmin;
@@ -1860,6 +1920,7 @@ update();
   }catch{}
   applyWriteMode();
   /* roles: the shared config + who has which role */
+  db.doc("admin/branding").onSnapshot(snap=>{ brandLogo = (snap.exists && typeof snap.data().logo==="string" && snap.data().logo.startsWith("data:image/")) ? snap.data().logo : ""; showLogo(); }, ()=>{});
   db.doc("admin/config").onSnapshot(snap=>{
     const c = snap.exists ? snap.data() : {};
     const roles = {};
