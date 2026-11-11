@@ -1,0 +1,23 @@
+services:
+  traffic-ip:
+    build: .
+    image: traffic-ip:latest
+    container_name: traffic-ip
+    restart: unless-stopped
+    ports:
+      - "8080:8080"            # change the left side to use another port, e.g. "80:8080"
+    volumes:
+      - traffic-ip-data:/data  # database + automatic backups
+    environment:
+      TZ: America/Los_Angeles
+      # Optional: create the owner account on first start instead of in the browser.
+      # Remove these two lines after the first start.
+      # ADMIN_USERNAME: admin
+      # ADMIN_PASSWORD: change-me-please
+      # Set to "true" when the app is served over HTTPS (behind a reverse proxy).
+      COOKIE_SECURE: "false"
+      # How long a sign-in lasts, in days.
+      SESSION_DAYS: "14"
+
+volumes:
+  traffic-ip-data:
