@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-17** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-18** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -46,7 +46,8 @@ Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=Experime
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PORT` | `8187` | Port inside the container. |
+| `PORT` | `8187` | Default port inside the container. Admins can change it in **Admin → Settings → Server port**. |
+| `RESET_PORT` | `false` | Set to `true` for one start to forget the port saved in Admin → Settings and go back to `PORT`. |
 | `DATA_DIR` | `/data` | Where the database and backups are kept. |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Create the owner account at first start instead of in the browser. Only used when no accounts exist yet; remove them afterwards. |
 | `ADMIN_NAME` | `Administrator` | Display name for that owner account. |
@@ -99,6 +100,21 @@ The pings come from the server, so devices must be reachable from wherever the c
 - or, with Docker older than 20.10, add `cap_add: [NET_RAW]` and `user: root`.
 
 Optional settings: `PING_CONCURRENCY` (default `16`) is how many devices are pinged at once.
+
+## Changing the port
+
+**Admin → Settings → Server port** sets the port the server listens on. It's saved right away and used the next time the server starts.
+
+With Docker, the `ports` line in `docker-compose.yml` must match: the right number is the server port, the left is the port you open in the browser. For example, after saving port 9000:
+
+```yaml
+    ports:
+      - "9000:9000"
+```
+
+then `docker compose up -d`. If the saved port can't be used, the server falls back to `PORT`. If you can't reach the app after a change, map the new port as above, or start once with `RESET_PORT=true`.
+
+To only change the port you type in the browser, you don't need this setting: change just the left number, e.g. `"80:8187"`.
 
 ## Data and backups
 
