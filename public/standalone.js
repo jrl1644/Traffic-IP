@@ -53,7 +53,7 @@
       </style>
       <form novalidate>
         <div class="bar"></div>
-        <div class="logo"><img alt="Logo"></div>
+        <div class="logo"><img alt="Icon"></div>
         <h1>Traffic-IP</h1>
         <p>${setup ? "Welcome! Create the owner account. The owner is always an Admin." : "Sign in to continue."}</p>
         ${setup ? `<label>Your name</label><input name="name" autocomplete="name">` : ""}

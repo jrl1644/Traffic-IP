@@ -146,6 +146,7 @@
   .brandslot{position:absolute;left:0;top:0;bottom:0;width:var(--logo-w,84px);overflow:hidden;display:block}
   .brandslot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   header.haslogo{padding-left:calc(var(--logo-w,84px) + 18px)}
+  .settinghead{margin:0 0 6px;font-size:15px}
   .logobox{display:flex;align-items:stretch;height:84px;border-radius:10px;background:var(--sign);margin-bottom:12px;overflow:hidden;color:#fff}
   .logobox img{height:100%;width:auto;object-fit:cover;display:block}
   .logobox .fake{display:flex;align-items:center;padding:0 16px;font-weight:700;font-size:18px}
@@ -203,7 +204,7 @@
 </head>
 <body>
 <header>
-  <span id="brandSlot" class="brandslot hidden"><img id="brandLogo" alt="Logo"></span>
+  <span id="brandSlot" class="brandslot hidden"><img id="brandLogo" alt="Icon"></span>
   <h1>Traffic-IP <span class="ver" id="appVersion" title="App version (MM.DD.YY-revision)"></span><small>IP-based field devices, organized by street intersection</small></h1>
   <button class="btn mobileOnly" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions">☰ Menu</button>
   <nav id="hdrActions">
@@ -413,7 +414,7 @@
     <div class="tabs" role="tablist">
       <button class="tab active" data-tab="people" role="tab"><span class="claudeOnly">People &amp; roles</span><span class="saOnly">Accounts &amp; roles</span></button>
       <button class="tab" data-tab="roles" role="tab">Role privileges</button>
-      <button class="tab" data-tab="branding" role="tab">Branding</button>
+      <button class="tab" data-tab="settings" role="tab">Settings</button>
       <button class="tab" data-tab="access" role="tab">Access &amp; sharing</button>
     </div>
     <div class="notice hidden" id="adminRO">You can view these settings. Only the owner and people shared as <b>Editor</b> on claude.ai can change them.</div>
@@ -451,12 +452,13 @@
       <div style="overflow:auto"><table class="ptable" id="roleMatrix"></table></div>
     </section>
 
-    <section class="tabpane hidden" data-pane="branding">
-      <p class="hint" style="margin:0 0 10px;font-size:14px">Your logo or photo fills the top-left corner of the header for everyone (and the sign-in screen in the self-hosted version). It's resized and cropped automatically: square to wide images fill the space; taller or extra-wide ones are trimmed from the center. PNG, JPG, SVG or WebP.</p>
-      <div class="logobox" id="logoPreview"><span class="none">No logo yet</span></div>
+    <section class="tabpane hidden" data-pane="settings">
+      <h3 class="settinghead">Custom icon</h3>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Your icon fills the top-left corner of the header for everyone (and the sign-in screen in the self-hosted version). It's resized and cropped automatically: square to wide images fill the space; taller or extra-wide ones are trimmed from the center. PNG, JPG, SVG or WebP.</p>
+      <div class="logobox" id="logoPreview"><span class="none">No icon yet</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <label class="btn" id="logoPick" style="cursor:pointer">Upload logo…<input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></label>
-        <button type="button" class="btn ghost del" id="logoRemove">Remove logo</button>
+        <label class="btn" id="logoPick" style="cursor:pointer">Upload icon…<input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></label>
+        <button type="button" class="btn ghost del" id="logoRemove">Remove icon</button>
       </div>
     </section>
 
@@ -532,7 +534,7 @@
 })();
 
 /* App version: MM.DD.YY-revision. Bump on every change. */
-const APP_VERSION = "11.11.26-6";
+const APP_VERSION = "11.11.26-7";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1661,7 +1663,7 @@ function showLogo(){
   const slot = $("#brandSlot"), img = $("#brandLogo");
   if(brandLogo){ if(img.getAttribute("src")!==brandLogo) img.src = brandLogo; slot.classList.remove("hidden"); sizeLogo(); }
   else { img.removeAttribute("src"); slot.classList.add("hidden"); sizeLogo(); }
-  $("#logoPreview").innerHTML = brandLogo ? `<img alt="Current logo" src="${esc(brandLogo)}"><span class="fake">Traffic-IP</span>` : `<span class="none">No logo yet — it will fill this corner of the header</span>`;
+  $("#logoPreview").innerHTML = brandLogo ? `<img alt="Current icon" src="${esc(brandLogo)}"><span class="fake">Traffic-IP</span>` : `<span class="none">No custom icon yet — it will fill this corner of the header</span>`;
   $("#logoRemove").classList.toggle("hidden", !brandLogo || !canManage());
   $("#logoPick").classList.toggle("hidden", !canManage());
 }
@@ -1699,11 +1701,11 @@ $("#logoFile").addEventListener("change", async e=>{
   try{
     const data = await shrinkLogo(f);
     await db.doc("admin/branding").set({logo:data, updated:new Date().toISOString()});
-    brandLogo = data; showLogo(); toast("Logo updated");
-  }catch(ex){ $("#aerr").textContent = ex?.message && !ex.code ? ex.message : (ex?.code==="invalid_argument" && !window.__STANDALONE ? "Only the owner and Editors can change the logo." : writeError(ex)); }
+    brandLogo = data; showLogo(); toast("Custom icon updated");
+  }catch(ex){ $("#aerr").textContent = ex?.message && !ex.code ? ex.message : (ex?.code==="invalid_argument" && !window.__STANDALONE ? "Only the owner and Editors can change the custom icon." : writeError(ex)); }
 });
-$("#logoRemove").onclick = ()=> openConfirm("Remove the logo?", "The header will show just the app name again.", "Remove logo",
-  async ()=>{ await db.doc("admin/branding").set({logo:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Logo removed"); });
+$("#logoRemove").onclick = ()=> openConfirm("Remove the custom icon?", "The header will show just the app name again.", "Remove icon",
+  async ()=>{ await db.doc("admin/branding").set({logo:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Custom icon removed"); });
 
 function closeAdmin(){ $("#adminScrim").classList.remove("open"); $("#adminHits").classList.add("hidden"); $("#adminSearch").value=""; }
 $("#adminBtn").onclick = openAdmin;

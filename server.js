@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "11.11.26-6";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "11.11.26-7";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 20+ built-ins only.
 "use strict";
 const http = require("http");
