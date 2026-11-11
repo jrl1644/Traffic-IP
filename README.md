@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-16** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-17** (versions are `YY.MM.DD-revision` and shown next to the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -69,7 +69,7 @@ Open **Admin** in the header (Admins only).
 
 - **Accounts & roles:** create accounts with a temporary password, set each person's role, reset passwords, and disable or delete accounts. Disabling or deleting someone signs them out straight away.
 - **Role privileges:** tick what **Technicians** and **Viewers** may do (add/edit/remove devices and intersections, manage the Device list and address pools, copy the CSV export). Admins can always do everything.
-- **Settings → Backup & restore:** download all data as one `.json` file, or restore a backup (replaces all data; type RESTORE to confirm). User accounts and passwords aren't included and aren't changed. Before a restore, the server saves a copy of the replaced data in `/data/backups/before-restore-….json`. Backups from the claude.ai version of the app can be restored here too.
+- **Settings → Backup & Restore:** download all data as one `.json` file, or restore a backup (replaces all data; type RESTORE to confirm). **Reset database** gives a clean start: it deletes all intersections, devices, address pools and the Device list, and clears the custom icon and settings (type RESET to confirm). Accounts and role privileges are kept. A copy of the deleted data is saved in `/data/backups/before-reset-….json`. User accounts and passwords aren't included and aren't changed. Before a restore, the server saves a copy of the replaced data in `/data/backups/before-restore-….json`. Backups from the claude.ai version of the app can be restored here too.
 - **Settings → Custom icon:** upload your organization's logo or a photo (PNG, JPG, SVG or WebP). It's resized and cropped automatically to fill the top-left corner of the header, shown on the sign-in screen, and used as the app's icon for browser tabs, bookmarks and iPhone/Android **Add to Home Screen** (a built-in Traffic-IP icon is used until you upload one).
 
 Everyone can use **Account** in the header to change their own password or sign out.
@@ -106,7 +106,7 @@ Optional settings: `PING_CONCURRENCY` (default `16`) is how many devices are pin
 - Device IPs are indexed, so the duplicate-IP check stays instant even with hundreds of thousands of devices.
 - **Upgrading from an older version** (which used `/data/db.json`): on first start the old file is imported automatically, including accounts and sign-ins, and kept as `/data/db.json.imported`.
 - Each time the server starts, it saves a copy of the database to `/data/backups/` and keeps the last 20 copies.
-- Admins can download or restore a full backup from **Admin → Settings → Backup & restore**. Before a restore, the current data is saved to `/data/backups/before-restore-….json`.
+- Admins can download or restore a full backup from **Admin → Settings → Backup & Restore**. Before a restore or a reset, the current data is saved to `/data/backups/before-restore-….json` or `before-reset-….json`.
 
 Copy the backups off the server (keep at least one copy somewhere other than this machine):
 

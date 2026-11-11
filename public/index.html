@@ -510,11 +510,12 @@
         <div class="hint" id="pingStatus" style="margin-top:8px;min-height:18px"></div>
       </div>
 
-      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Backup &amp; restore</h3>
+      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Backup &amp; Restore</h3>
       <p class="hint" style="margin:0 0 10px;font-size:14px">A backup holds all the app's data: intersections, devices, address pools, the Device list, roles &amp; privileges and the custom icon<span class="saOnly"> (user accounts and passwords aren't included and aren't changed by a restore)</span>. Backups work in both the claude.ai and self-hosted versions.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button type="button" class="btn primary" id="backupBtn">Download backup</button>
         <label class="btn" id="restorePick" style="cursor:pointer">Restore from backup…<input type="file" id="restoreFile" accept=".json,application/json" hidden></label>
+        <button type="button" class="btn ghost del" id="resetDbBtn">Reset database…</button>
       </div>
       <div class="hint" id="bkStatus" style="margin-top:8px;min-height:18px"></div>
     </section>
@@ -594,7 +595,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-16";
+const APP_VERSION = "26.11.11-17";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1924,23 +1925,41 @@ $("#restoreFile").addEventListener("change", async e=>{
      <br><br>Download a backup of the current data first if you might want it back.`,
     "Replace all data", ()=>restoreAll(backup), {typeToConfirm:"RESTORE"});
 });
-async function restoreAll(backup){
+/* reset: a clean start. Clears intersections, devices, pools, the Device list, the custom icon and settings;
+   keeps people/accounts and role privileges so nobody is locked out. */
+$("#resetDbBtn").onclick = ()=>{
+  $("#bkStatus").textContent = "";
+  const cur = countsOf({intersections:Object.fromEntries([...inters.values()].filter(i=>i.docId).map(i=>[i.docId,1])), devices:Object.fromEntries(devices.map(d=>[d.id,1])), pools:Object.fromEntries([...pools.keys()].map(k=>[k,1])), deviceOptions:Object.fromEntries(deviceOpts.map(o=>[o.id,1]))});
+  openConfirm("Reset the database?",
+    `This <b>permanently deletes</b> all intersections, devices, address pools and the Device list, and clears the custom icon and settings (such as the Ping check) — a clean start.<br><br>
+     <b>Will be deleted:</b> ${esc(countText(cur))}<br>
+     <b>Kept:</b> ${window.__STANDALONE ? "user accounts and passwords" : "people &amp; roles"}, and role privileges.<br><br>
+     <b>Download a backup first</b> if you might want any of it back.`,
+    "Delete everything", resetAll, {typeToConfirm:"RESET"});
+};
+async function resetAll(){
+  const all = await readAll();
+  return restoreAll({collections:{intersections:{}, devices:{}, pools:{}, deviceOptions:{}, members:all.members||{}, admin: all.admin?.config ? {config:all.admin.config} : {}}}, true);
+}
+async function restoreAll(backup, isReset){
   const st = $("#bkStatus"), c = backup.collections;
-  st.style.color = ""; st.textContent = "Restoring…";
+  const word = isReset ? "Resetting" : "Restoring";
+  st.style.color = ""; st.textContent = word+"…";
   try{
     if(window.__STANDALONE){
-      await window.__api("POST", "/api/restore", {collections:c});
-      st.textContent = "Restored. Reloading…";
-      toast("Backup restored");
+      await window.__api("POST", "/api/restore", {collections:c, ...(isReset ? {reset:true} : {exported:backup.exported})});
+      st.textContent = (isReset ? "Database reset" : "Restored")+". Reloading…";
+      toast(isReset ? "Database reset — clean start" : "Backup restored");
       return;   // the server tells every open page to reload
     }
     // claude.ai: replace collection by collection
     const total = BACKUP_COLLS.reduce((n,k)=>n+Object.keys(c[k]||{}).length, 0) + 2;
     let done = 0;
-    const tick = () => { done++; if(done % 10 === 0 || done===total) st.textContent = `Restoring… ${Math.min(done,total)} of ${total}`; };
+    const tick = () => { done++; if(done % 10 === 0 || done===total) st.textContent = `${word}… ${Math.min(done,total)} of ${total}`; };
     for(const k of BACKUP_COLLS){
       const want = c[k] && typeof c[k]==="object" ? c[k] : {};
       const have = await db.collection(k).get();
+      if(isReset) st.textContent = `${word}… clearing ${k==="deviceOptions" ? "the Device list" : k}`;
       for(const d of have.docs) if(!(d.id in want)) await db.collection(k).doc(d.id).delete();
       for(const [id, data] of Object.entries(want)){ if(data && typeof data==="object") await db.collection(k).doc(id).set(data); tick(); }
     }
@@ -1950,16 +1969,16 @@ async function restoreAll(backup){
       else await db.doc("admin/"+id).set(id==="branding" ? {logo:""} : {defaultRole:"viewer", ownerId:roleCfg.ownerId||null});
       tick();
     }
-    st.textContent = `Restored — ${countText(countsOf(c))}.`;
-    toast("Backup restored");
+    st.textContent = isReset ? "Database reset — clean start." : `Restored — ${countText(countsOf(c))}.`;
+    toast(isReset ? "Database reset — clean start" : "Backup restored");
   }catch(ex){
     st.style.color = "var(--danger)";
-    const msg = ex?.message && window.__STANDALONE ? ex.message : ex?.code==="invalid_argument" ? "Only the owner and Editors can restore a backup." : "The restore stopped part-way. Try again, or restore a backup of the previous data.";
+    const msg = ex?.message && window.__STANDALONE ? ex.message : ex?.code==="invalid_argument" ? `Only the owner and Editors can ${isReset ? "reset the database" : "restore a backup"}.` : `The ${isReset ? "reset" : "restore"} stopped part-way. Try again${isReset ? "" : ", or restore a backup of the previous data"}.`;
     st.textContent = msg;
     throw {userMessage: msg};
   }
 }
-function showBackupControls(){ ["#backupBtn","#restorePick"].forEach(x=>$(x).classList.toggle("hidden", !canManage())); }
+function showBackupControls(){ ["#backupBtn","#restorePick","#resetDbBtn"].forEach(x=>$(x).classList.toggle("hidden", !canManage())); }
 
 function closeAdmin(){ $("#adminScrim").classList.remove("open"); $("#adminHits").classList.add("hidden"); $("#adminSearch").value=""; }
 $("#adminBtn").onclick = openAdmin;

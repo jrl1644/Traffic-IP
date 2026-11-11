@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-16";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-17";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -576,11 +576,18 @@ const server = http.createServer(async (req, res) => {
         for (const [id, d] of Object.entries(docs)) if (SEG.test(id) && d && typeof d === "object" && !Array.isArray(d)) next[name][id] = d;
       }
       // keep a copy of what's being replaced, next to the automatic backups
+      const isReset = b.reset === true;
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      fs.writeFileSync(path.join(BACKUP_DIR, `before-restore-${stamp}.json`), JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: exportCollections() }));
+      const old = { devices: Q.countColl.get("devices").n, intersections: Q.countColl.get("intersections").n };
+      fs.writeFileSync(path.join(BACKUP_DIR, `before-${isReset ? "reset" : "restore"}-${stamp}.json`), JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: exportCollections() }));
       tx(() => { Q.clearDocs.run(); for (const [name, docs] of Object.entries(next)) for (const [id, d] of Object.entries(docs)) putDoc(name, id, d); });
-      logChange(u, "restore", null, null, `Restored a backup from ${String(b.exported || "an unknown date").slice(0, 10)} (${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections)`);
-      console.log(`Backup restored by ${u.username}: ${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections.`);
+      if (isReset) {
+        logChange(u, "restore", null, null, `Reset the database — clean start (deleted ${old.devices} device${old.devices === 1 ? "" : "s"} and ${old.intersections} intersection${old.intersections === 1 ? "" : "s"}; a copy was saved on the server)`);
+        console.log(`Database reset by ${u.username} (${old.devices} devices, ${old.intersections} intersections removed; copy in backups/before-reset-${stamp}.json).`);
+      } else {
+        logChange(u, "restore", null, null, `Restored a backup from ${String(b.exported || "an unknown date").slice(0, 10)} (${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections)`);
+        console.log(`Backup restored by ${u.username}: ${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections.`);
+      }
       setTimeout(() => broadcast({ type: "reload" }), 300);   // every open page reloads with the restored data
       schedulePings(1000);
       return send(res, 200, { ok: true });
