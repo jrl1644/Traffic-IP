@@ -503,18 +503,6 @@
         <div class="hint" id="pingStatus" style="margin-top:8px;min-height:18px"></div>
       </div>
 
-      <div class="saOnly">
-        <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Server port</h3>
-        <p class="hint" style="margin:0 0 10px;font-size:14px">The port the server listens on. A new port takes effect the next time the server restarts.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
-          <label class="f" style="width:auto">Listening port<input type="number" id="portInput" min="1024" max="65535" step="1" style="width:130px;font-family:var(--mono)"></label>
-          <button type="button" class="btn" id="portSave">Save port</button>
-          <button type="button" class="btn ghost" id="portDefault">Use default</button>
-        </div>
-        <div class="hint" id="portStatus" style="margin-top:8px;min-height:18px"></div>
-        <div class="notice hidden" id="portNext" style="margin-top:8px"></div>
-      </div>
-
       <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Backup &amp; Restore</h3>
       <p class="hint" style="margin:0 0 10px;font-size:14px">A backup holds all the app's data: intersections, devices, address pools, the Device list, roles &amp; privileges and the custom icon<span class="saOnly"> (user accounts and passwords aren't included and aren't changed by a restore)</span>. Backups work in both the claude.ai and self-hosted versions.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -599,7 +587,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-18";
+const APP_VERSION = "26.11.11-19";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1727,7 +1715,7 @@ async function renderAdmin(){
     PERMS.map(([k,label])=>`<tr><td>${esc(label)}</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" data-role="${r}" data-perm="${k}" ${roleCfg.roles[r].perms[k]?"checked":""} ${(r==="admin"||ro)?"disabled":""}></td>`).join("")}</tr>`).join("") +
     `<tr><td>Open this Admin menu</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" ${r==="admin"?"checked":""} disabled></td>`).join("")}</tr></tbody>`;
 }
-function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); loadPort(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
 /* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
 let brandLogo = "";
 const LOGO_MIN_RATIO = 1, LOGO_MAX_RATIO = 4;     // square up to 4× as wide as the header is tall
@@ -1874,42 +1862,6 @@ window.addEventListener("iid-ping", e=>{
   pingState = {available:m.available, error:m.error||"", running:!!m.running, lastRun:m.lastRun, results:m.results||{}};
   render(); if($("#adminScrim").classList.contains("open")) showPingSettings();
 });
-
-/* ---------- server port (self-hosted version) ---------- */
-let portInfo = null;
-async function loadPort(){
-  if(!window.__STANDALONE) return;
-  try{ portInfo = await window.__api("GET", "/api/server/port"); }catch{ portInfo = null; }
-  showPort();
-}
-function showPort(){
-  const ro = !canManage();
-  ["#portInput","#portSave","#portDefault"].forEach(x=>$(x).disabled = ro || !portInfo);
-  const st = $("#portStatus"), nx = $("#portNext");
-  st.style.color = ""; nx.classList.add("hidden");
-  if(!portInfo){ st.textContent = ro ? "Only admins can change the server port." : "Couldn't read the server port."; return; }
-  const next = portInfo.saved || portInfo.defaultPort;
-  $("#portInput").value = String(next);
-  st.textContent = `Listening on port ${portInfo.active}${portInfo.active===portInfo.defaultPort ? " (the default)" : ""}.`;
-  if(next !== portInfo.active){
-    nx.innerHTML = portInfo.docker
-      ? `<b>Port ${next} is saved and takes effect when the container restarts.</b> First change the <code>ports</code> line in <code>docker-compose.yml</code> to<br><code style="font-family:var(--mono)">- "${next}:${next}"</code><br>then run <code style="font-family:var(--mono)">docker compose up -d</code> and open the app on port ${next}. (The left number is the port you type in the browser — keep whatever you use now if you prefer, just change the right one to ${next}.)<br><span class="hint">If you can't reach the app afterwards, map the new port as shown, or start the container once with <code>RESET_PORT=true</code> to go back to ${portInfo.defaultPort}.</span>`
-      : `<b>Port ${next} is saved and takes effect when the server restarts.</b> Restart it, then open the app on port ${next}. If that port can't be used, the server falls back to ${portInfo.defaultPort}.`;
-    nx.classList.remove("hidden");
-  }
-}
-async function savePort(port){
-  const st = $("#portStatus");
-  try{ portInfo = await window.__api("PUT", "/api/server/port", {port}); showPort(); toast(port===null ? "Server port set back to the default" : "Server port saved"); }
-  catch(ex){ st.style.color = "var(--danger)"; st.textContent = ex?.message || "Couldn't save the port."; }
-}
-$("#portSave").onclick = ()=>{
-  const v = Number($("#portInput").value);
-  if(!Number.isInteger(v) || v<1024 || v>65535){ const st=$("#portStatus"); st.style.color="var(--danger)"; st.textContent = "Choose a port from 1024 to 65535."; return; }
-  savePort(v);
-};
-$("#portInput").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#portSave").click(); } });
-$("#portDefault").onclick = ()=>savePort(null);
 
 /* ---------- backup & restore (all data) ---------- */
 const BACKUP_COLLS = ["intersections","devices","pools","deviceOptions","members"];

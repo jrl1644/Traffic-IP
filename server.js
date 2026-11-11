@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-18";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-19";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -10,10 +10,7 @@ const net = require("net");
 const { execFile } = require("child_process");
 const { DatabaseSync } = require("node:sqlite");
 
-const ENV_PORT = parseInt(process.env.PORT || "8187", 10);     // default port; Admin → Settings → Server port can change it
-const PORT_FILE = path.join(require("os").tmpdir(), "traffic-ip.port");   // the port in use, for the Docker health check
-const IN_DOCKER = fs.existsSync("/.dockerenv");
-let activePort = ENV_PORT;
+const PORT = parseInt(process.env.PORT || "8187", 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const COOKIE_SECURE = /^(1|true|yes)$/i.test(process.env.COOKIE_SECURE || "");
@@ -79,13 +76,6 @@ function listColl(c) { const out = {}; for (const r of Q.listDocs.all(c)) out[r.
 function putDoc(c, id, data) { if (c === "devices" && typeof data.ip === "string") data.ip = data.ip.trim(); Q.putDoc.run(c, id, JSON.stringify(data)); }
 function delDoc(c, id) { Q.delDoc.run(c, id); }
 const adminDoc = id => getDoc("admin", id) || {};
-function savedPort() { const v = parseInt(Q.getMeta.get("port")?.value || "", 10); return v >= 1024 && v <= 65535 ? v : null; }
-function portFree(port) {
-  return new Promise(resolve => {
-    const t = net.createServer().once("error", () => resolve(false)).once("listening", () => t.close(() => resolve(true)));
-    t.listen(port);
-  });
-}
 
 /* accounts */
 function getUser(id) { const r = Q.getUser.get(String(id)); return r ? parse(r.data) : null; }
@@ -547,23 +537,6 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    /* --- server port (admins): saved now, used the next time the server starts --- */
-    if (p === "/api/server/port") {
-      if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can change the server port.");
-      if (req.method === "GET") return send(res, 200, { active: activePort, saved: savedPort(), defaultPort: ENV_PORT, docker: IN_DOCKER });
-      if (req.method === "PUT") {
-        const b = await readBody(req);
-        const want = b && b.port === null ? null : parseInt(b && b.port, 10);
-        if (want !== null && !(want >= 1024 && want <= 65535)) return err(res, 400, "invalid_argument", "Choose a port from 1024 to 65535.");
-        if (want !== null && want !== activePort && !(await portFree(want))) return err(res, 409, "conflict", `Port ${want} is already in use on this server. Choose another.`);
-        const before = savedPort() || ENV_PORT, after = want || ENV_PORT;
-        if (want === null || want === ENV_PORT) Q.putMeta.run("port", ""); else Q.putMeta.run("port", String(want));
-        if (before !== after) logChange(u, "update", "settings", "port", `Changed the server port: ${before} → ${after} (takes effect when the server restarts)`);
-        return send(res, 200, { active: activePort, saved: savedPort(), defaultPort: ENV_PORT, docker: IN_DOCKER });
-      }
-      return err(res, 405, "invalid_argument", "Method not allowed.");
-    }
-
     /* --- change log (admins): newest first, ?q= search, ?before=<id> for the next page --- */
     if (p === "/api/changelog" && req.method === "GET") {
       if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can see the change log.");
@@ -680,22 +653,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 schedulePings(3000);
-/* listen on the port saved in Admin → Settings → Server port (or PORT); if that port can't be used, fall back to PORT */
-if (/^(1|true|yes)$/i.test(process.env.RESET_PORT || "")) { Q.putMeta.run("port", ""); console.log(`RESET_PORT is set: the saved server port was cleared; using ${ENV_PORT}.`); }
-function startListening(port, fallback) {
-  server.once("error", e => {
-    if (fallback && (e.code === "EADDRINUSE" || e.code === "EACCES")) {
-      console.error(`Couldn't use the saved port ${port} (${e.code}). Using ${ENV_PORT} instead.`);
-      server.removeAllListeners("listening");
-      return startListening(ENV_PORT, false);
-    }
-    throw e;
-  });
-  server.listen(port, () => {
-    activePort = port;
-    try { fs.writeFileSync(PORT_FILE, String(port)); } catch {}
-    console.log(`Traffic-IP v${VERSION} running on port ${port}${port !== ENV_PORT ? " (set in Admin → Settings → Server port)" : ""} (data in ${DATA_DIR})`);
-    if (!userCount()) console.log("No accounts yet — open the app in a browser to create the owner account.");
-  });
-}
-startListening(savedPort() || ENV_PORT, !!savedPort() && savedPort() !== ENV_PORT);
+server.listen(PORT, () => {
+  console.log(`Traffic-IP v${VERSION} running on port ${PORT} (data in ${DATA_DIR})`);
+  if (!userCount()) console.log("No accounts yet — open the app in a browser to create the owner account.");
+});

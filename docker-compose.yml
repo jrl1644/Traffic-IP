@@ -8,7 +8,7 @@ services:
     container_name: traffic-ip
     restart: unless-stopped
     ports:
-      - "8187:8187"            # browser port : server port. If you change Admin → Settings → Server port, change the right side to match.
+      - "8187:8187"            # change the left side to use another port, e.g. "80:8187"
     volumes:
       - traffic-ip-data:/data  # database + automatic backups
     environment:
@@ -21,8 +21,6 @@ services:
       COOKIE_SECURE: "false"
       # How long a sign-in lasts, in days.
       SESSION_DAYS: "14"
-      # Set to "true" for one start to forget a port saved in Admin → Settings → Server port.
-      # RESET_PORT: "true"
 
 volumes:
   traffic-ip-data:
