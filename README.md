@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 11.11.26-8** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
+**Version 11.11.26-9** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -50,6 +50,7 @@ Node.js 20 or newer: `node server.js` (data goes to `./data`).
 | `DATA_DIR` | `/data` | Where the database and backups are kept. |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Create the owner account at first start instead of in the browser. Only used when no accounts exist yet; remove them afterwards. |
 | `ADMIN_NAME` | `Administrator` | Display name for that owner account. |
+| `TRUST_PROXY` | `false` | Set to `true` only when the app is behind your own reverse proxy, so sign-in limits use each person's real address instead of the proxy's. Leave it off otherwise. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is reached over **HTTPS**. |
 | `SESSION_DAYS` | `14` | How long a sign-in lasts. |
 | `TZ` | — | Time zone for log timestamps. |
@@ -100,6 +101,15 @@ docker compose up -d
 (The volume name may differ. `docker volume ls` shows it.)
 
 ---
+
+## Security
+
+- Passwords are stored as salted scrypt hashes. Sign-in tokens are random, kept in an HttpOnly cookie, and stored in the database only as hashes.
+- Wrong-password attempts are limited (10 per username and 50 per address every 10 minutes). Sign-in takes the same time whether or not a username exists.
+- Roles are checked by the server on every change, duplicate IPs are refused by the server, and requests that don't come from the app itself are rejected.
+- Pages are sent with a strict Content-Security-Policy and other protective headers. Copy CSV neutralises cells that a spreadsheet would run as formulas.
+- **First start:** whoever opens the app first creates the owner account. Do that (or set `ADMIN_USERNAME`/`ADMIN_PASSWORD`) **before** making the app reachable by others.
+- Use HTTPS (`COOKIE_SECURE=true` behind a reverse proxy) for anything beyond your local network.
 
 ## Using it over the internet / HTTPS
 

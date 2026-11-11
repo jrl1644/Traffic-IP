@@ -542,7 +542,7 @@
 })();
 
 /* App version: MM.DD.YY-revision. Bump on every change. */
-const APP_VERSION = "11.11.26-8";
+const APP_VERSION = "11.11.26-9";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1006,7 +1006,8 @@ $("#list").addEventListener("click", e=>{
 });
 
 $("#csvBtn").onclick = ()=>{
-  const q = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  // quote every cell; neutralise values a spreadsheet would treat as a formula (=, +, -, @, tab, return)
+  const q = v => { let t = String(v??""); if(/^[=+\-@\t\r]/.test(t)) t = "'" + t; return `"${t.replace(/"/g,'""')}"`; };
   const rows = ["Street 1,Street 2,Intersection ID,GPS,Device,Type,IP address,IP pool,MAC,Device notes"];
   let n=0;
   filtered().forEach(({inter:i,devices:devs})=>{

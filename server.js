@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "11.11.26-8";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "11.11.26-9";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 20+ built-ins only.
 "use strict";
 const http = require("http");
@@ -11,6 +11,7 @@ const PORT = parseInt(process.env.PORT || "8187", 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const COOKIE_SECURE = /^(1|true|yes)$/i.test(process.env.COOKIE_SECURE || "");
+const TRUST_PROXY = /^(1|true|yes)$/i.test(process.env.TRUST_PROXY || "");   // set when behind a reverse proxy, so login limits use the real client address
 const SESSION_DAYS = parseFloat(process.env.SESSION_DAYS || "14");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const BACKUP_DIR = path.join(DATA_DIR, "backups");
@@ -46,7 +47,10 @@ function flushSync() {
 process.on("SIGTERM", () => { flushSync(); process.exit(0); });
 process.on("SIGINT", () => { flushSync(); process.exit(0); });
 
-const coll = name => (state.collections[name] ||= {});
+const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
+const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+const coll = name => { if (RESERVED.has(name)) throw new Error("reserved"); if (!own(state.collections, name)) state.collections[name] = {}; return state.collections[name]; };
+const peek = name => (!RESERVED.has(name) && own(state.collections, name)) ? state.collections[name] : {};   // read without creating
 
 /* ------------------------------------------------------------------ roles */
 const PERMS = ["devices.add","devices.edit","devices.remove","inters.add","inters.edit","inters.remove","devlist.manage","pools.manage","export.csv"];
@@ -58,7 +62,7 @@ const DEFAULT_ROLES = {
 const ROLES = ["admin", "technician", "viewer"];
 function rolePerms(role) {
   if (role === "admin") return DEFAULT_ROLES.admin;
-  const cfg = coll("admin").config || {};
+  const cfg = peek("admin").config || {};
   return { ...DEFAULT_ROLES[role] || {}, ...(cfg.roles?.[role]?.perms || {}) };
 }
 function userRole(u) { return u.owner ? "admin" : (ROLES.includes(u.role) ? u.role : "viewer"); }
@@ -77,27 +81,38 @@ function checkPassword(u, pw) {
 function validPassword(pw) { return typeof pw === "string" && pw.length >= 8; }
 const publicUser = u => ({ id: u.id, username: u.username, name: u.name || "", email: u.email || "", role: userRole(u), owner: !!u.owner, disabled: !!u.disabled, created: u.created, lastLogin: u.lastLogin || null });
 function findUser(username) { const n = String(username || "").trim().toLowerCase(); return Object.values(state.users).find(u => u.username.toLowerCase() === n); }
+function checkLogin(username, pw) { const u = findUser(username); const ok = checkPassword(u || DUMMY, String(pw || "")); return u && ok ? u : null; }
+const tokenKey = t => crypto.createHash("sha256").update(t).digest("hex");   // the database never holds a usable sign-in token
 function newSession(u) {
   const token = crypto.randomBytes(32).toString("hex");
-  state.sessions[token] = { userId: u.id, expires: Date.now() + SESSION_DAYS * 864e5 };
+  state.sessions[tokenKey(token)] = { v: 2, userId: u.id, expires: Date.now() + SESSION_DAYS * 864e5 };
   u.lastLogin = new Date().toISOString(); save();
   return token;
 }
 function sessionUser(req) {
   const m = /(?:^|;\s*)iid_session=([a-f0-9]{64})/.exec(req.headers.cookie || "");
   if (!m) return null;
-  const s = state.sessions[m[1]];
-  if (!s || s.expires < Date.now()) { if (s) { delete state.sessions[m[1]]; save(); } return null; }
-  const u = state.users[s.userId];
+  const key = tokenKey(m[1]);
+  const s = own(state.sessions, key) ? state.sessions[key] : null;
+  if (!s || s.expires < Date.now()) { if (s) { delete state.sessions[key]; save(); } return null; }
+  const u = own(state.users, s.userId) ? state.users[s.userId] : null;
   if (!u || u.disabled) return null;
-  return Object.assign(u, { _token: m[1] });
+  return Object.assign(u, { _token: key });
 }
 function cookie(token, maxAge) {
   return `iid_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${COOKIE_SECURE ? "; Secure" : ""}`;
 }
-// simple login throttle: 10 failures per 10 minutes per IP+username
+setInterval(() => { const now = Date.now(); let n = 0; for (const [k, s] of Object.entries(state.sessions)) if (s.expires < now) { delete state.sessions[k]; n++; } if (n) save(); }, 3600e3);
+// sessions from before tokens were hashed can't be matched any more: drop them
+for (const k of Object.keys(state.sessions)) if (state.sessions[k]?.v !== 2) delete state.sessions[k];
+
+// login throttle: 10 failures per 10 minutes per IP+username, and 50 per IP across all usernames
 const fails = new Map();
-function throttled(key) { const f = fails.get(key); return f && f.n >= 10 && Date.now() - f.t < 600e3; }
+function throttled(key, max = 10) { const f = fails.get(key); return f && f.n >= max && Date.now() - f.t < 600e3; }
+setInterval(() => { const now = Date.now(); for (const [k, f] of fails) if (now - f.t > 600e3) fails.delete(k); }, 600e3);
+const clientIp = req => (TRUST_PROXY && String(req.headers["x-forwarded-for"] || "").split(",")[0].trim()) || req.socket.remoteAddress || "";
+// equal work whether or not the username exists, so response time doesn't reveal which usernames are real
+const DUMMY = hashPassword(crypto.randomBytes(16).toString("hex"));
 function failed(key) { const f = fails.get(key) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 600e3) { f.n = 0; f.t = Date.now(); } f.n++; fails.set(key, f); }
 
 // first admin from environment, if provided and no users exist
@@ -137,9 +152,9 @@ function writeAllowed(u, c, id, kind /* create|update|delete */) {
   // renaming an intersection replaces its record: allow removing the old record
   // with "edit" rights once no device still points at it
   if (c === "intersections" && kind === "delete" && can(u, "inters.edit")) {
-    const doc = coll("intersections")[id]; if (!doc) return true;
+    const doc = own(peek("intersections"), id) ? peek("intersections")[id] : null; if (!doc) return true;
     const a = normStreet(doc.street1), b = normStreet(doc.street2);
-    return !Object.values(coll("devices")).some(d => { const x = normStreet(d.street1), y = normStreet(d.street2); return (x === a && y === b) || (x === b && y === a); });
+    return !Object.values(peek("devices")).some(d => { const x = normStreet(d.street1), y = normStreet(d.street2); return (x === a && y === b) || (x === b && y === a); });
   }
   return false;
 }
@@ -148,17 +163,18 @@ function validate(c, id, data) {
   if (c === "devices") {
     const ip = String(data.ip || "").trim();
     if (!ip) return "A device needs an IP address.";
-    const taken = Object.entries(coll("devices")).find(([k, d]) => k !== id && String(d.ip).trim() === ip);
+    const taken = Object.entries(peek("devices")).find(([k, d]) => k !== id && String(d.ip).trim() === ip);
     if (taken) return { conflict: `IP ${ip} is already used by “${taken[1].name}”. Duplicate IPs aren't allowed.` };
   }
   return null;
 }
-const SEG = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
+const SEG_RE = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
+const SEG = { test: v => SEG_RE.test(v) && !RESERVED.has(v) };
 
 /* ------------------------------------------------------------------ http helpers */
 function send(res, code, obj, headers = {}) {
   const body = JSON.stringify(obj);
-  res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers });
+  res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...headers });
   res.end(body);
 }
 const err = (res, code, errCode, message) => send(res, code, { error: { code: errCode, message } });
@@ -170,17 +186,24 @@ function readBody(req, limit = MAX_BODY) {
     req.on("error", reject);
   });
 }
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "same-origin",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+  // only this server's own code runs; fonts from Google; images only from the page itself
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'",
+};
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".json": "application/json" };
 function serveStatic(req, res, urlPath) {
   let p = urlPath === "/" ? "/index.html" : urlPath;
-  const file = path.normalize(path.join(PUBLIC_DIR, p));
-  if (!file.startsWith(PUBLIC_DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("Not found"); }
+  let decoded; try { decoded = decodeURIComponent(p); } catch { res.writeHead(400); return res.end("Bad request"); }
+  const file = path.resolve(PUBLIC_DIR, "." + decoded);
+  if (!file.startsWith(PUBLIC_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end("Not found"); }
   res.writeHead(200, {
     "Content-Type": MIME[path.extname(file)] || "application/octet-stream",
     "Cache-Control": "no-cache",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "same-origin",
-    "X-Frame-Options": "SAMEORIGIN",
+    ...SECURITY_HEADERS,
   });
   fs.createReadStream(file).pipe(res);
 }
@@ -194,7 +217,7 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/health") return send(res, 200, { ok: true, version: VERSION });
     // the logo is public so the sign-in screen can show it (nothing else is readable before signing in)
     if (p === "/api/branding" && req.method === "GET") {
-      const logo = coll("admin").branding?.logo;
+      const logo = peek("admin").branding?.logo;
       return send(res, 200, { logo: typeof logo === "string" && logo.startsWith("data:image/") ? logo : "" });
     }
 
@@ -218,10 +241,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === "/api/login" && req.method === "POST") {
       const b = await readBody(req);
-      const key = (req.socket.remoteAddress || "") + "|" + String(b.username || "").toLowerCase();
-      if (throttled(key)) return err(res, 429, "resource_exhausted", "Too many attempts. Try again in 10 minutes.");
-      const u = findUser(b.username);
-      if (!u || !checkPassword(u, b.password || "")) { failed(key); return err(res, 401, "unauthenticated", "Wrong username or password."); }
+      const ip = clientIp(req), key = ip + "|" + String(b.username || "").toLowerCase();
+      if (throttled(key) || throttled("ip|" + ip, 50)) return err(res, 429, "resource_exhausted", "Too many attempts. Try again in 10 minutes.");
+      const u = checkLogin(b.username, b.password);
+      if (!u) { failed(key); failed("ip|" + ip); return err(res, 401, "unauthenticated", "Wrong username or password."); }
       if (u.disabled) return err(res, 403, "forbidden", "This account is disabled. Ask an admin.");
       fails.delete(key);
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie(newSession(u), SESSION_DAYS * 86400) });
@@ -237,7 +260,9 @@ const server = http.createServer(async (req, res) => {
 
     if (p === "/api/me/password" && req.method === "POST") {
       const b = await readBody(req);
-      if (!checkPassword(u, b.current || "")) return err(res, 400, "invalid_argument", "Your current password is wrong.");
+      const pk = "pw|" + u.id;
+      if (throttled(pk)) return err(res, 429, "resource_exhausted", "Too many attempts. Try again in 10 minutes.");
+      if (!checkPassword(u, b.current || "")) { failed(pk); return err(res, 400, "invalid_argument", "Your current password is wrong."); }
       if (!validPassword(b.password)) return err(res, 400, "invalid_argument", "Passwords need at least 8 characters.");
       Object.assign(u, hashPassword(b.password));
       for (const [t, s] of Object.entries(state.sessions)) if (s.userId === u.id && t !== u._token) delete state.sessions[t];
@@ -267,11 +292,12 @@ const server = http.createServer(async (req, res) => {
         state.users[nid] = { id: nid, username, name: String(b.name || "").trim(), email: String(b.email || "").trim(), role: ROLES.includes(b.role) ? b.role : "technician", created: new Date().toISOString(), ...hashPassword(b.password) };
         save(); return send(res, 200, publicUser(state.users[nid]));
       }
-      const t = state.users[id];
+      const t = own(state.users, id) ? state.users[id] : null;
       if (!t) return err(res, 404, "not_found", "No such account.");
       if (req.method === "PATCH") {
         const b = await readBody(req);
         if (t.owner && (("role" in b && b.role !== "admin") || b.disabled)) return err(res, 400, "invalid_argument", "The owner account is always an active Admin.");
+        if (t.owner && t.id !== u.id && ("password" in b || "name" in b || "email" in b)) return err(res, 403, "forbidden", "Only the owner can change the owner account.");
         if (t.id === u.id && b.disabled) return err(res, 400, "invalid_argument", "You can't disable your own account.");
         if ("role" in b) { if (!ROLES.includes(b.role)) return err(res, 400, "invalid_argument", "Unknown role."); t.role = b.role; }
         if ("name" in b) t.name = String(b.name || "").trim();
@@ -308,6 +334,7 @@ const server = http.createServer(async (req, res) => {
       if (!c || typeof c !== "object" || typeof c.devices !== "object" || typeof c.intersections !== "object") return err(res, 400, "invalid_argument", "That file isn't a Traffic-IP backup.");
       const next = {};
       for (const [name, docs] of Object.entries(c)) {
+        if (RESERVED.has(name)) continue;
         if (!SEG.test(name) || name.startsWith("_") || !docs || typeof docs !== "object" || Array.isArray(docs)) continue;
         next[name] = {};
         for (const [id, d] of Object.entries(docs)) if (SEG.test(id) && d && typeof d === "object" && !Array.isArray(d)) next[name][id] = d;
@@ -326,6 +353,7 @@ const server = http.createServer(async (req, res) => {
     const lockM = p.match(/^\/api\/lock\/([^/]+)\/([^/]+)$/);
     if (lockM && req.method === "POST") {
       const [, c, id] = lockM;
+      if (!SEG.test(c) || !SEG.test(id)) return err(res, 400, "invalid_argument", "Bad path.");
       if (!writeAllowed(u, "locks", id, "update")) return err(res, 403, "forbidden", "Not allowed.");
       const b = await readBody(req);
       const key = c + "/" + id, now = Date.now();
@@ -342,13 +370,13 @@ const server = http.createServer(async (req, res) => {
       const [, c, id] = m;
       if (!SEG.test(c) || (id && !SEG.test(id)) || c.startsWith("_")) return err(res, 400, "invalid_argument", "Bad path.");
       if (req.method === "GET") {
-        if (!id) return send(res, 200, Object.entries(coll(c)).map(([k, v]) => ({ id: k, data: v })));
-        const d = coll(c)[id];
+        if (!id) return send(res, 200, Object.entries(peek(c)).map(([k, v]) => ({ id: k, data: v })));
+        const d = own(peek(c), id) ? peek(c)[id] : undefined;
         return send(res, 200, d ? { id, exists: true, data: d } : { id, exists: false });
       }
       if (!id) return err(res, 400, "invalid_argument", "Missing id.");
       if (req.method === "PUT") {
-        const exists = !!coll(c)[id];
+        const exists = own(peek(c), id);
         if (!writeAllowed(u, c, id, exists ? "update" : "create")) return err(res, 403, "forbidden", "Your role doesn't allow that change.");
         const data = await readBody(req);
         const v = validate(c, id, data);
