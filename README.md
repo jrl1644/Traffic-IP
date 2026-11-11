@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 11.11.26-2** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
+**Version 11.11.26-3** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -22,7 +22,7 @@ docker compose up -d --build
 
 (Or clone the whole repo and run `docker compose up -d --build` in it. It still builds from GitHub.)
 
-Open **http://localhost:8080** (or `http://<server-ip>:8080` from another computer).
+Open **http://localhost:8187** (or `http://<server-ip>:8187` from another computer).
 
 The first time, you'll be asked to **create the owner account**. The owner is always an Admin and can't be deleted or disabled.
 
@@ -32,7 +32,7 @@ Stop it with `docker compose down`. Your data stays in the `traffic-ip-data` vol
 
 ```bash
 docker build -t traffic-ip .
-docker run -d --name traffic-ip -p 8080:8080 \
+docker run -d --name traffic-ip -p 8187:8187 \
   -v traffic-ip-data:/data --restart unless-stopped traffic-ip
 ```
 
@@ -46,7 +46,7 @@ Node.js 20 or newer: `node server.js` (data goes to `./data`).
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PORT` | `8080` | Port inside the container. |
+| `PORT` | `8187` | Port inside the container. |
 | `DATA_DIR` | `/data` | Where the database and backups are kept. |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Create the owner account at first start instead of in the browser. Only used when no accounts exist yet; remove them afterwards. |
 | `ADMIN_NAME` | `Administrator` | Display name for that owner account. |
@@ -103,7 +103,7 @@ Example with Caddy (automatic certificates):
 
 ```
 inventory.example.com {
-    reverse_proxy localhost:8080
+    reverse_proxy localhost:8187
 }
 ```
 
