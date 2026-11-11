@@ -1,6 +1,9 @@
+# Builds Traffic-IP straight from GitHub — this file is all you need on the server.
+#   docker compose up -d --build      (run again later to update to the latest version)
 services:
   traffic-ip:
-    build: .
+    build:
+      context: https://github.com/jrl1644/Traffic-IP.git#main
     image: traffic-ip:latest
     container_name: traffic-ip
     restart: unless-stopped

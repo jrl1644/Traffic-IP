@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 11.11.26-1** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
+**Version 11.11.26-2** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -12,11 +12,15 @@ This version runs on its own server: no claude.ai account is needed. It has **no
 
 You need Docker (Docker Desktop on Windows/Mac, or Docker Engine on Linux).
 
+The included `docker-compose.yml` builds the app **directly from this GitHub repo**, so on a server you only need that one file:
+
 ```bash
-git clone https://github.com/jrl1644/Traffic-IP.git
-cd Traffic-IP
+mkdir traffic-ip && cd traffic-ip
+curl -O https://raw.githubusercontent.com/jrl1644/Traffic-IP/main/docker-compose.yml
 docker compose up -d --build
 ```
+
+(Or clone the whole repo and run `docker compose up -d --build` in it. It still builds from GitHub.)
 
 Open **http://localhost:8080** (or `http://<server-ip>:8080` from another computer).
 
@@ -113,7 +117,11 @@ Live updates use Server-Sent Events on `/api/events`. If your proxy buffers resp
 docker compose up -d --build
 ```
 
-Your data in the volume is kept.
+This rebuilds from the latest `main` on GitHub. Your data in the volume is kept.
+
+To run **local changes** instead (e.g. you edited the files), build from the folder: `docker build -t traffic-ip:latest . && docker compose up -d`, or change `context:` in `docker-compose.yml` to `.`.
+
+To pin a specific version, change `#main` in `docker-compose.yml` to a tag or commit, e.g. `#ff3e500`.
 
 ## Notes
 
