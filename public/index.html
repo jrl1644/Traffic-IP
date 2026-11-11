@@ -206,6 +206,13 @@
   .typechips small{color:var(--muted)}
   header .btn{border-color:rgba(255,255,255,.4)}
 </style>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1f6f4a">
+<meta name="apple-mobile-web-app-title" content="Traffic-IP">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 </head>
 <body>
 <header>
@@ -459,7 +466,7 @@
 
     <section class="tabpane hidden" data-pane="settings">
       <h3 class="settinghead">Custom icon</h3>
-      <p class="hint" style="margin:0 0 10px;font-size:14px">Your icon fills the top-left corner of the header for everyone (and the sign-in screen in the self-hosted version). It's resized and cropped automatically: square to wide images fill the space; taller or extra-wide ones are trimmed from the center. PNG, JPG, SVG or WebP.</p>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Your icon fills the top-left corner of the header for everyone. In the self-hosted version it's also shown on the sign-in screen and used as the app's icon for browser tabs, bookmarks and "Add to Home Screen". It's resized and cropped automatically: square to wide images fill the space; taller or extra-wide ones are trimmed from the center. PNG, JPG, SVG or WebP.</p>
       <div class="logobox" id="logoPreview"><span class="none">No icon yet</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <label class="btn" id="logoPick" style="cursor:pointer">Upload icon…<input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></label>
@@ -566,7 +573,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-12";
+const APP_VERSION = "26.11.11-13";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1704,6 +1711,36 @@ function showLogo(){
   $("#logoPick").classList.toggle("hidden", !canManage());
 }
 /* resize + crop the upload to fill the header corner: between square and 3:1, trimmed from the center */
+/* square app/bookmark icon made from the custom icon: near-square images fill it, wider ones sit centred on the header green */
+function makeAppIcon(src){
+  return new Promise(resolve=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+      const ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high";
+      ctx.fillStyle = "#1f6f4a"; ctx.fillRect(0, 0, S, S);
+      const iw = img.naturalWidth || 1, ih = img.naturalHeight || 1, r = iw / ih;
+      if(r >= 0.8 && r <= 1.25){                       // close to square: fill the whole icon
+        const side = Math.min(iw, ih); ctx.drawImage(img, (iw-side)/2, (ih-side)/2, side, side, 0, 0, S, S);
+      } else {                                          // wide or tall: fit inside with a margin
+        const pad = S*0.08, box = S - pad*2, sc = Math.min(box/iw, box/ih), w = iw*sc, h = ih*sc;
+        ctx.drawImage(img, (S-w)/2, (S-h)/2, w, h);
+      }
+      let data = c.toDataURL("image/png");
+      if(data.length > 180000) data = c.toDataURL("image/jpeg", 0.9);
+      resolve(data);
+    };
+    img.onerror = ()=>resolve("");
+    img.src = src;
+  });
+}
+/* point the page's tab/bookmark icons at the current icon (self-hosted version) */
+function refreshAppIcons(stamp){
+  if(!window.__STANDALONE) return;
+  const v = encodeURIComponent(stamp || "default");
+  document.querySelectorAll('link[rel~="icon"],link[rel="apple-touch-icon"]').forEach(l=>{ l.href = l.getAttribute("href").split("?")[0] + "?v=" + v; });
+  const m = document.querySelector('link[rel="manifest"]'); if(m) m.href = "/manifest.webmanifest?v=" + v;
+}
 function shrinkLogo(file){
   return new Promise((resolve, reject)=>{
     if(file.size > 15*1024*1024) return reject(new Error("That file is over 15 MB — pick a smaller image."));
@@ -1736,12 +1773,13 @@ $("#logoFile").addEventListener("change", async e=>{
   $("#aerr").textContent = "";
   try{
     const data = await shrinkLogo(f);
-    await db.doc("admin/branding").set({logo:data, updated:new Date().toISOString()});
+    const icon = await makeAppIcon(data);
+    await db.doc("admin/branding").set({logo:data, icon, updated:new Date().toISOString()});
     brandLogo = data; showLogo(); toast("Custom icon updated");
   }catch(ex){ $("#aerr").textContent = ex?.message && !ex.code ? ex.message : (ex?.code==="invalid_argument" && !window.__STANDALONE ? "Only the owner and Editors can change the custom icon." : writeError(ex)); }
 });
 $("#logoRemove").onclick = ()=> openConfirm("Remove the custom icon?", "The header will show just the app name again.", "Remove icon",
-  async ()=>{ await db.doc("admin/branding").set({logo:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Custom icon removed"); });
+  async ()=>{ await db.doc("admin/branding").set({logo:"", icon:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Custom icon removed"); });
 
 /* ---------- ping check ---------- */
 let pingCfg = {enabled:false, intervalSec:60, timeoutSec:1};
@@ -2133,7 +2171,18 @@ update();
     render(); if($("#adminScrim").classList.contains("open")) showPingSettings();
   }, ()=>{});
   if(window.__STANDALONE) window.__api("GET","/api/ping").then(m=>window.dispatchEvent(new CustomEvent("iid-ping",{detail:m}))).catch(()=>{});
-  db.doc("admin/branding").onSnapshot(snap=>{ brandLogo = (snap.exists && typeof snap.data().logo==="string" && snap.data().logo.startsWith("data:image/")) ? snap.data().logo : ""; showLogo(); }, ()=>{});
+  let iconBackfilled = false;
+  db.doc("admin/branding").onSnapshot(async snap=>{
+    const b = snap.exists ? snap.data() : {};
+    brandLogo = (typeof b.logo==="string" && b.logo.startsWith("data:image/")) ? b.logo : ""; showLogo();
+    refreshAppIcons(brandLogo ? b.updated : "");
+    // an icon uploaded before app icons existed gets its square version made once, by an admin
+    if(brandLogo && !b.icon && canManage() && !iconBackfilled){
+      iconBackfilled = true;
+      const icon = await makeAppIcon(brandLogo);
+      if(icon) db.doc("admin/branding").set({...b, icon, updated:new Date().toISOString()}).catch(()=>{});
+    }
+  }, ()=>{});
   db.doc("admin/config").onSnapshot(snap=>{
     const c = snap.exists ? snap.data() : {};
     const roles = {};

@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-12";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-13";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 20+ built-ins only.
 "use strict";
 const http = require("http");
@@ -263,11 +263,40 @@ function serveStatic(req, res, urlPath) {
   fs.createReadStream(file).pipe(res);
 }
 
+/* ------------------------------------------------------------------ app icon (tabs, bookmarks, home screen)
+   The custom icon's square version (made in the browser at upload) if there is one, otherwise the built-in icon. */
+const ICON_PATHS = new Set(["/favicon.ico", "/favicon.png", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png", "/icon-192.png", "/icon-512.png"]);
+const DEFAULT_ICON = fs.readFileSync(path.join(PUBLIC_DIR, "default-icon.png"));
+function currentIcon() {
+  const b = peek("admin").branding || {};
+  const m = typeof b.icon === "string" && b.icon.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
+  return m ? { type: m[1], body: Buffer.from(m[2], "base64"), tag: String(b.updated || "") } : { type: "image/png", body: DEFAULT_ICON, tag: "default" };
+}
+function serveIcon(req, res) {
+  const ic = currentIcon();
+  const etag = '"' + crypto.createHash("sha1").update(ic.body).digest("hex").slice(0, 16) + '"';
+  if (req.headers["if-none-match"] === etag) { res.writeHead(304, { ETag: etag }); return res.end(); }
+  res.writeHead(200, { "Content-Type": ic.type, "Content-Length": ic.body.length, "Cache-Control": "no-cache", ETag: etag, "X-Content-Type-Options": "nosniff" });
+  res.end(ic.body);
+}
+function serveManifest(req, res) {
+  const v = encodeURIComponent(currentIcon().tag), type = currentIcon().type;
+  const body = JSON.stringify({
+    name: "Traffic-IP", short_name: "Traffic-IP", start_url: "/", scope: "/", display: "standalone",
+    background_color: "#f4f5f2", theme_color: "#1f6f4a",
+    icons: [{ src: `/icon-192.png?v=${v}`, sizes: "192x192", type, purpose: "any" }, { src: `/icon-512.png?v=${v}`, sizes: "512x512", type, purpose: "any" }],
+  });
+  res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" });
+  res.end(body);
+}
+
 /* ------------------------------------------------------------------ routes */
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   const p = url.pathname;
   try {
+    if (ICON_PATHS.has(p)) return serveIcon(req, res);
+    if (p === "/manifest.webmanifest") return serveManifest(req, res);
     if (!p.startsWith("/api/")) return serveStatic(req, res, p);
     if (p === "/api/health") return send(res, 200, { ok: true, version: VERSION });
     // the logo is public so the sign-in screen can show it (nothing else is readable before signing in)
