@@ -420,7 +420,6 @@
       <button class="tab active" data-tab="people" role="tab"><span class="claudeOnly">People &amp; roles</span><span class="saOnly">Accounts &amp; roles</span></button>
       <button class="tab" data-tab="roles" role="tab">Role privileges</button>
       <button class="tab" data-tab="settings" role="tab">Settings</button>
-      <button class="tab" data-tab="access" role="tab">Access &amp; sharing</button>
     </div>
     <div class="notice hidden" id="adminRO">You can view these settings. Only the owner and people shared as <b>Editor</b> on claude.ai can change them.</div>
 
@@ -494,9 +493,6 @@
       <div class="hint" id="bkStatus" style="margin-top:8px;min-height:18px"></div>
     </section>
 
-    <section class="tabpane hidden" data-pane="access">
-      <div id="accessInfo"></div>
-    </section>
 
     <div class="ferr" id="aerr"></div>
     <div class="actions"><button class="btn" id="closeAdmin">Done</button></div>
@@ -565,7 +561,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-14";
+const APP_VERSION = "26.11.11-15";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1646,34 +1642,6 @@ async function renderAdmin(){
   $("#roleMatrix").innerHTML = `<thead><tr><th>Privilege</th>${ROLE_ORDER.map(r=>`<th>${esc(roleCfg.roles[r].label)}</th>`).join("")}</tr></thead><tbody>` +
     PERMS.map(([k,label])=>`<tr><td>${esc(label)}</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" data-role="${r}" data-perm="${k}" ${roleCfg.roles[r].perms[k]?"checked":""} ${(r==="admin"||ro)?"disabled":""}></td>`).join("")}</tr>`).join("") +
     `<tr><td>Open this Admin menu</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" ${r==="admin"?"checked":""} disabled></td>`).join("")}</tr></tbody>`;
-  // access explainer
-  if(window.__STANDALONE){
-    $("#accessInfo").innerHTML = `
-      <p style="margin:0 0 10px">Everyone signs in with their own account. An account's <b>role</b> decides what they can do, and the server checks it on every change — so roles can't be bypassed.</p>
-      <ul style="margin:0 0 12px;padding-left:20px;line-height:1.6">
-        <li><b>Admin</b> — everything, including this menu and accounts.</li>
-        <li><b>Technician</b> and <b>Viewer</b> — what's ticked for them under <b>Role privileges</b>.</li>
-        <li><b>Disabled</b> accounts can't sign in.</li>
-      </ul>
-      <div class="notice">You: <b>${esc(me.name || me.username)}</b> · Role: <b>${esc(roleCfg.roles[myRole()].label)}</b></div>
-      ${canManage() ? `<p style="margin:12px 0 0"><b>Backups</b> — the server keeps a copy of the database each time it starts. To download or restore a backup, use <b>Settings → Backup &amp; restore</b>.</p>` : ""}`;
-    return;
-  }
-  const level = me.isOwner ? "Owner" : me.canEdit ? "Editor" : shareWrite ? "Contributor" : "Viewer / Commenter";
-  $("#accessInfo").innerHTML = `
-    <p style="margin:0 0 10px">Two things decide what someone can do:</p>
-    <ol style="margin:0 0 12px;padding-left:20px;line-height:1.6">
-      <li><b>claude.ai sharing</b> (the <b>Share</b> button on this app's page) decides who can open the app at all, and whether they can save anything:
-        <ul style="margin:4px 0;padding-left:18px">
-          <li><b>Viewer / Commenter</b> — can look and search only, whatever their role here.</li>
-          <li><b>Contributor</b> — can save changes, limited by their role here.</li>
-          <li><b>Editor</b> — same as Contributor, and can also change roles in this Admin menu.</li>
-        </ul></li>
-      <li><b>Their role here</b> (People &amp; roles tab) decides which changes they can make.</li>
-    </ol>
-    <p style="margin:0 0 6px">People and their sharing level are managed on claude.ai — this page can't add people or change their sharing.</p>
-    <div class="notice" style="margin-top:10px">Your sharing level: <b>${level}</b> · Your role: <b>${esc(roleCfg.roles[myRole()].label)}</b></div>
-    <p class="hint" style="margin:8px 0 0">Roles control the buttons and forms in this app. A Contributor or Editor with technical skills could still change data outside the app's screens, so only share as Contributor or Editor with people you trust to edit.</p>`;
 }
 function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
 /* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
