@@ -1,4 +1,5 @@
-// Traffic IP — standalone server
+// Traffic-IP — standalone server
+const VERSION = "11.11.26-1";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 20+ built-ins only.
 "use strict";
 const http = require("http");
@@ -190,7 +191,7 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
   try {
     if (!p.startsWith("/api/")) return serveStatic(req, res, p);
-    if (p === "/api/health") return send(res, 200, { ok: true });
+    if (p === "/api/health") return send(res, 200, { ok: true, version: VERSION });
 
     // all state-changing API calls must come from the app itself (blocks cross-site form posts)
     if (req.method !== "GET" && req.headers["x-requested-with"] !== "iid") return err(res, 403, "forbidden", "Bad request origin.");
@@ -344,6 +345,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Traffic IP running on port ${PORT} (data in ${DATA_DIR})`);
+  console.log(`Traffic-IP v${VERSION} running on port ${PORT} (data in ${DATA_DIR})`);
   if (!Object.keys(state.users).length) console.log("No accounts yet — open the app in a browser to create the owner account.");
 });
