@@ -323,7 +323,7 @@
       <label class="f">ATMS ID <span class="hint">optional</span>
         <input name="atmsId" placeholder="e.g. 1042" autocomplete="off">
       </label>
-      <label class="f">Port <span class="hint">optional</span>
+      <label class="f">ATMS Port <span class="hint">optional</span>
         <input name="atmsPort" inputmode="numeric" placeholder="e.g. 10001" autocomplete="off" style="font-family:var(--mono)">
       </label>
       <label class="f full">GPS coordinates <span class="hint">optional — latitude, longitude</span>
@@ -627,7 +627,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-24";
+const APP_VERSION = "26.11.11-25";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1115,7 +1115,7 @@ function printableHtml(i, cols, withInfo){
   const nameOf = s => esc(plainStreet(s));
   const info = withInfo ? [
     i.number ? `<div><b>Intersection ID:</b> ${esc(i.number)}</div>` : "",
-    i.atmsId || i.atmsPort ? `<div>${i.atmsId ? `<b>ATMS ID:</b> ${esc(i.atmsId)}` : ""}${i.atmsId && i.atmsPort ? " &nbsp;·&nbsp; " : ""}${i.atmsPort ? `<b>Port:</b> ${esc(i.atmsPort)}` : ""}</div>` : "",
+    i.atmsId || i.atmsPort ? `<div>${i.atmsId ? `<b>ATMS ID:</b> ${esc(i.atmsId)}` : ""}${i.atmsId && i.atmsPort ? " &nbsp;·&nbsp; " : ""}${i.atmsPort ? `<b>ATMS Port:</b> ${esc(i.atmsPort)}` : ""}</div>` : "",
     i.gps ? `<div><b>GPS:</b> ${esc(gpsText(i.gps))}</div>` : "",
     i.notes ? `<div><b>Notes:</b> ${esc(i.notes)}</div>` : "",
   ].join("") : "";
@@ -1272,7 +1272,7 @@ iform.addEventListener("submit", async e=>{
   e.preventDefault();
   const v = {street1:joinDir(iform.elements.dir1.value, iform.elements.street1.value), street2:joinDir(iform.elements.dir2.value, iform.elements.street2.value), number:tidy(iform.elements.number.value).toUpperCase(), atmsId:tidy(iform.elements.atmsId.value), atmsPort:tidy(iform.elements.atmsPort.value), notes:String(iform.elements.notes.value||"").trim()};
   const err = $("#ierr");
-  if(v.atmsPort && !(/^\d{1,5}$/.test(v.atmsPort) && +v.atmsPort>=1 && +v.atmsPort<=65535)) return err.textContent = "Port must be a number from 1 to 65535.";
+  if(v.atmsPort && !(/^\d{1,5}$/.test(v.atmsPort) && +v.atmsPort>=1 && +v.atmsPort<=65535)) return err.textContent = "ATMS Port must be a number from 1 to 65535.";
   if(v.atmsPort) v.atmsPort = String(+v.atmsPort);
   if(!v.street1||!v.street2) return err.textContent="Enter both streets of the intersection.";
   if(norm(v.street1)===norm(v.street2)) return err.textContent="The two streets must be different.";
