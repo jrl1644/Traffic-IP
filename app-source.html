@@ -460,6 +460,14 @@
         <label class="btn" id="logoPick" style="cursor:pointer">Upload icon…<input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></label>
         <button type="button" class="btn ghost del" id="logoRemove">Remove icon</button>
       </div>
+
+      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Backup &amp; restore</h3>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">A backup holds all the app's data: intersections, devices, address pools, the Device list, roles &amp; privileges and the custom icon<span class="saOnly"> (user accounts and passwords aren't included and aren't changed by a restore)</span>. Backups work in both the claude.ai and self-hosted versions.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn primary" id="backupBtn">Download backup</button>
+        <label class="btn" id="restorePick" style="cursor:pointer">Restore from backup…<input type="file" id="restoreFile" accept=".json,application/json" hidden></label>
+      </div>
+      <div class="hint" id="bkStatus" style="margin-top:8px;min-height:18px"></div>
     </section>
 
     <section class="tabpane hidden" data-pane="access">
@@ -533,7 +541,7 @@
 })();
 
 /* App version: MM.DD.YY-revision. Bump on every change. */
-const APP_VERSION = "11.11.26-7";
+const APP_VERSION = "11.11.26-8";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1410,7 +1418,7 @@ $("#confirmDel").onclick = async ()=>{
   if(verifyWord && $("#verifyInput").value.trim().toUpperCase()!==verifyWord) return;
   const b=$("#confirmDel"); b.disabled=true;
   try{ await pendingDelete(); }
-  catch(ex){ toast(ex?.code==="invalid_argument" ? "You have view-only access." : "Couldn't make that change right now."); }
+  catch(ex){ toast(ex?.userMessage || (ex?.code==="invalid_argument" ? "You have view-only access." : "Couldn't make that change right now.")); }
   finally{ b.disabled=false; verifyWord=""; closeConfirm(); }
 };
 
@@ -1619,8 +1627,7 @@ async function renderAdmin(){
         <li><b>Disabled</b> accounts can't sign in.</li>
       </ul>
       <div class="notice">You: <b>${esc(me.name || me.username)}</b> · Role: <b>${esc(roleCfg.roles[myRole()].label)}</b></div>
-      ${canManage() ? `<p style="margin:12px 0 6px"><b>Backups</b> — the server keeps a copy of the database each time it starts. You can also download everything now:</p>
-      <a class="btn" href="/api/backup" download style="text-decoration:none;display:inline-block">Download backup (.json)</a>` : ""}`;
+      ${canManage() ? `<p style="margin:12px 0 0"><b>Backups</b> — the server keeps a copy of the database each time it starts. To download or restore a backup, use <b>Settings → Backup &amp; restore</b>.</p>` : ""}`;
     return;
   }
   const level = me.isOwner ? "Owner" : me.canEdit ? "Editor" : shareWrite ? "Contributor" : "Viewer / Commenter";
@@ -1639,7 +1646,7 @@ async function renderAdmin(){
     <div class="notice" style="margin-top:10px">Your sharing level: <b>${level}</b> · Your role: <b>${esc(roleCfg.roles[myRole()].label)}</b></div>
     <p class="hint" style="margin:8px 0 0">Roles control the buttons and forms in this app. A Contributor or Editor with technical skills could still change data outside the app's screens, so only share as Contributor or Editor with people you trust to edit.</p>`;
 }
-function openAdmin(){ showLogo(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+function openAdmin(){ showLogo(); showBackupControls(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
 /* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
 let brandLogo = "";
 const LOGO_MIN_RATIO = 1, LOGO_MAX_RATIO = 4;     // square up to 4× as wide as the header is tall
@@ -1705,6 +1712,97 @@ $("#logoFile").addEventListener("change", async e=>{
 });
 $("#logoRemove").onclick = ()=> openConfirm("Remove the custom icon?", "The header will show just the app name again.", "Remove icon",
   async ()=>{ await db.doc("admin/branding").set({logo:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Custom icon removed"); });
+
+/* ---------- backup & restore (all data) ---------- */
+const BACKUP_COLLS = ["intersections","devices","pools","deviceOptions","members"];
+const ADMIN_DOCS = ["config","branding"];
+const today = () => new Date().toISOString().slice(0,10);
+async function readAll(){
+  const collections = {};
+  for(const c of BACKUP_COLLS){
+    const snap = await db.collection(c).get();
+    collections[c] = Object.fromEntries(snap.docs.map(d=>[d.id, d.data()]));
+  }
+  collections.admin = {};
+  for(const id of ADMIN_DOCS){ const d = await db.doc("admin/"+id).get(); if(d.exists) collections.admin[id] = d.data(); }
+  return collections;
+}
+const countsOf = c => ({intersections:Object.keys(c.intersections||{}).length, devices:Object.keys(c.devices||{}).length, pools:Object.keys(c.pools||{}).length, deviceOptions:Object.keys(c.deviceOptions||{}).length});
+const countText = n => `${n.intersections} intersection${n.intersections===1?"":"s"}, ${n.devices} device${n.devices===1?"":"s"}, ${n.pools} address pool${n.pools===1?"":"s"}, ${n.deviceOptions} Device list entr${n.deviceOptions===1?"y":"ies"}`;
+$("#backupBtn").onclick = async ()=>{
+  const st = $("#bkStatus"); st.style.color = ""; st.textContent = "Preparing backup…";
+  try{
+    if(window.__STANDALONE){
+      // the server builds it, including everything it stores (not accounts)
+      const a = document.createElement("a"); a.href = "/api/backup"; a.download = `traffic-ip-backup-${today()}.json`; document.body.appendChild(a); a.click(); a.remove();
+      st.textContent = "Backup downloaded.";
+      return;
+    }
+    const collections = await readAll();
+    const data = JSON.stringify({app:"Traffic-IP", version:APP_VERSION, exported:new Date().toISOString(), collections}, null, 1);
+    const dl = await window.claude?.use("downloads");
+    if(!dl){ st.style.color="var(--danger)"; st.textContent = "Downloads aren't available in this view — open the app on claude.ai."; return; }
+    await dl.save({filename:`traffic-ip-backup-${today()}.json`, data});
+    st.textContent = `Backup saved — ${countText(countsOf(collections))}.`;
+  }catch(ex){
+    st.style.color = "var(--danger)";
+    st.textContent = ex?.code==="declined" ? "Backup cancelled." : ex?.code==="rate_limited" ? "A save is already waiting for you — finish that first." : "Couldn't create the backup.";
+  }
+};
+$("#restoreFile").addEventListener("change", async e=>{
+  const f = e.target.files[0]; e.target.value = ""; if(!f) return;
+  const st = $("#bkStatus"); st.style.color = ""; st.textContent = "";
+  let backup;
+  try{ backup = JSON.parse(await f.text()); }catch{ st.style.color="var(--danger)"; st.textContent = "That file isn't a Traffic-IP backup (it isn't valid JSON)."; return; }
+  const c = backup?.collections;
+  if(!c || typeof c!=="object" || typeof c.devices!=="object" || typeof c.intersections!=="object"){ st.style.color="var(--danger)"; st.textContent = "That file isn't a Traffic-IP backup."; return; }
+  const ips = Object.values(c.devices).map(d=>String(d?.ip||"").trim()).filter(Boolean);
+  const dupIps = [...new Set(ips.filter((ip,i)=>ips.indexOf(ip)!==i))];
+  const cur = countsOf({intersections:Object.fromEntries([...inters.values()].filter(i=>i.docId).map(i=>[i.docId,1])), devices:Object.fromEntries(devices.map(d=>[d.id,1])), pools:Object.fromEntries([...pools.keys()].map(k=>[k,1])), deviceOptions:Object.fromEntries(deviceOpts.map(o=>[o.id,1]))});
+  const when = backup.exported ? new Date(backup.exported).toLocaleString() : "an unknown date";
+  openConfirm("Restore from backup?",
+    `This <b>replaces all current data</b> with the backup from <b>${esc(when)}</b>${backup.version?` (v${esc(backup.version)})`:""}.<br><br>
+     <b>Now:</b> ${esc(countText(cur))}<br><b>Backup:</b> ${esc(countText(countsOf(c)))}
+     ${dupIps.length?`<br><br><span style="color:var(--danger)">⚠ The backup has ${dupIps.length} duplicate IP${dupIps.length===1?"":"s"} (${esc(dupIps.slice(0,3).join(", "))}${dupIps.length>3?"…":""}). They'll be flagged after restoring.</span>`:""}
+     <br><br>Download a backup of the current data first if you might want it back.`,
+    "Replace all data", ()=>restoreAll(backup), {typeToConfirm:"RESTORE"});
+});
+async function restoreAll(backup){
+  const st = $("#bkStatus"), c = backup.collections;
+  st.style.color = ""; st.textContent = "Restoring…";
+  try{
+    if(window.__STANDALONE){
+      await window.__api("POST", "/api/restore", {collections:c});
+      st.textContent = "Restored. Reloading…";
+      toast("Backup restored");
+      return;   // the server tells every open page to reload
+    }
+    // claude.ai: replace collection by collection
+    const total = BACKUP_COLLS.reduce((n,k)=>n+Object.keys(c[k]||{}).length, 0) + 2;
+    let done = 0;
+    const tick = () => { done++; if(done % 10 === 0 || done===total) st.textContent = `Restoring… ${Math.min(done,total)} of ${total}`; };
+    for(const k of BACKUP_COLLS){
+      const want = c[k] && typeof c[k]==="object" ? c[k] : {};
+      const have = await db.collection(k).get();
+      for(const d of have.docs) if(!(d.id in want)) await db.collection(k).doc(d.id).delete();
+      for(const [id, data] of Object.entries(want)){ if(data && typeof data==="object") await db.collection(k).doc(id).set(data); tick(); }
+    }
+    const adm = c.admin || {};
+    for(const id of ADMIN_DOCS){
+      if(adm[id] && typeof adm[id]==="object") await db.doc("admin/"+id).set(adm[id]);
+      else await db.doc("admin/"+id).set(id==="branding" ? {logo:""} : {defaultRole:"viewer", ownerId:roleCfg.ownerId||null});
+      tick();
+    }
+    st.textContent = `Restored — ${countText(countsOf(c))}.`;
+    toast("Backup restored");
+  }catch(ex){
+    st.style.color = "var(--danger)";
+    const msg = ex?.message && window.__STANDALONE ? ex.message : ex?.code==="invalid_argument" ? "Only the owner and Editors can restore a backup." : "The restore stopped part-way. Try again, or restore a backup of the previous data.";
+    st.textContent = msg;
+    throw {userMessage: msg};
+  }
+}
+function showBackupControls(){ ["#backupBtn","#restorePick"].forEach(x=>$(x).classList.toggle("hidden", !canManage())); }
 
 function closeAdmin(){ $("#adminScrim").classList.remove("open"); $("#adminHits").classList.add("hidden"); $("#adminSearch").value=""; }
 $("#adminBtn").onclick = openAdmin;

@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 11.11.26-7** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
+**Version 11.11.26-8** (versions are `MM.DD.YY-revision` and shown next to the app name in the header)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -66,6 +66,7 @@ Open **Admin** in the header (Admins only).
 
 - **Accounts & roles:** create accounts with a temporary password, set each person's role, reset passwords, and disable or delete accounts. Disabling or deleting someone signs them out straight away.
 - **Role privileges:** tick what **Technicians** and **Viewers** may do (add/edit/remove devices and intersections, manage the Device list and address pools, copy the CSV export). Admins can always do everything.
+- **Settings → Backup & restore:** download all data as one `.json` file, or restore a backup (replaces all data; type RESTORE to confirm). User accounts and passwords aren't included and aren't changed. Before a restore, the server saves a copy of the replaced data in `/data/backups/before-restore-….json`. Backups from the claude.ai version of the app can be restored here too.
 - **Settings → Custom icon:** upload your organization's logo or a photo (PNG, JPG, SVG or WebP). It's resized and cropped automatically to fill the top-left corner of the header, and it's also shown on the sign-in screen.
 - **Access & sharing:** a summary of how access works, plus **Download backup**.
 
@@ -79,7 +80,7 @@ Everyone can use **Account** in the header to change their own password or sign 
 
 - Everything lives in `/data/db.json` (in the `traffic-ip-data` volume). It's written safely: a crash can't leave a half-written file.
 - Each time the server starts, it copies the database to `/data/backups/` and keeps the last 20 copies.
-- Admins can download a full backup from **Admin → Access & sharing**.
+- Admins can download or restore a full backup from **Admin → Settings → Backup & restore**.
 
 Copy the backups off the server:
 

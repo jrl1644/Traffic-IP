@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "11.11.26-7";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "11.11.26-8";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 20+ built-ins only.
 "use strict";
 const http = require("http");
@@ -162,10 +162,10 @@ function send(res, code, obj, headers = {}) {
   res.end(body);
 }
 const err = (res, code, errCode, message) => send(res, code, { error: { code: errCode, message } });
-function readBody(req) {
+function readBody(req, limit = MAX_BODY) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
-    req.on("data", ch => { size += ch.length; if (size > MAX_BODY) { reject(new Error("too large")); req.destroy(); } else chunks.push(ch); });
+    req.on("data", ch => { size += ch.length; if (size > limit) { reject(new Error("too large")); req.destroy(); } else chunks.push(ch); });
     req.on("end", () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}); } catch { reject(new Error("bad json")); } });
     req.on("error", reject);
   });
@@ -296,8 +296,30 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/backup" && req.method === "GET") {
       if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can download backups.");
       const stamp = new Date().toISOString().slice(0, 10);
-      res.writeHead(200, { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="traffic-ip-backup-${stamp}.json"` });
-      return res.end(JSON.stringify({ exported: new Date().toISOString(), collections: state.collections }, null, 1));
+      res.writeHead(200, { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="traffic-ip-backup-${stamp}.json"`, "Cache-Control": "no-store" });
+      return res.end(JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: state.collections }, null, 1));
+    }
+
+    /* --- restore (admins): replace all app data in one step; accounts are left alone --- */
+    if (p === "/api/restore" && req.method === "POST") {
+      if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can restore a backup.");
+      const b = await readBody(req, 100 * 1024 * 1024);
+      const c = b && b.collections;
+      if (!c || typeof c !== "object" || typeof c.devices !== "object" || typeof c.intersections !== "object") return err(res, 400, "invalid_argument", "That file isn't a Traffic-IP backup.");
+      const next = {};
+      for (const [name, docs] of Object.entries(c)) {
+        if (!SEG.test(name) || name.startsWith("_") || !docs || typeof docs !== "object" || Array.isArray(docs)) continue;
+        next[name] = {};
+        for (const [id, d] of Object.entries(docs)) if (SEG.test(id) && d && typeof d === "object" && !Array.isArray(d)) next[name][id] = d;
+      }
+      // keep a copy of what's being replaced, next to the automatic backups
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      fs.writeFileSync(path.join(BACKUP_DIR, `before-restore-${stamp}.json`), JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: state.collections }));
+      state.collections = next;
+      flushSync();
+      console.log(`Backup restored by ${u.username}: ${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections.`);
+      setTimeout(() => broadcast({ type: "reload" }), 300);   // every open page reloads with the restored data
+      return send(res, 200, { ok: true });
     }
 
     /* --- locks (cooperative leases for IP assignment) --- */
