@@ -542,7 +542,7 @@
 })();
 
 /* App version: MM.DD.YY-revision. Bump on every change. */
-const APP_VERSION = "11.11.26-9";
+const APP_VERSION = "11.11.26-10";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -551,7 +551,7 @@ let pools = new Map();           // id -> {id, name, range, types:[]}
 let deviceOpts = [];             // [{id, name}] — choices for the Device dropdown
 let inters = new Map();          // key -> {key, street1, street2, number, notes, docId|null, devices:[]}
 let editingId = null, editingInterKey = null, pendingDelete = null;
-const collapsed = new Set();
+const expanded = new Set();     // intersections the viewer has opened — every intersection starts collapsed
 
 /* ---------- roles & privileges ----------
    claude.ai sharing decides who can open the app and who can save at all (Viewer/Commenter = look only).
@@ -916,7 +916,7 @@ function render(){
 
   $("#list").innerHTML = groups.map(({inter:i, devices:devs})=>{
     // while searching, results start collapsed; ones you open stay open until the search changes
-    const isCol = filt ? !searchOpen.has(i.key) : collapsed.has(i.key);
+    const isCol = filt ? !searchOpen.has(i.key) : !expanded.has(i.key);
     const k = esc(i.key);
     return `<section class="group ${isCol?"collapsed":""}">
       <div class="ghead" data-toggle="${k}">
@@ -984,8 +984,8 @@ $("#colMenu").addEventListener("click", e=>{
 });
 document.addEventListener("click", ()=>{ $("#colMenu").classList.add("hidden"); $("#colBtn").setAttribute("aria-expanded", false); });
 $("#clearBtn").onclick = ()=>{ searchOpen.clear(); ["#qi","#q","#fStreet","#fType","#fField"].forEach(s=>$(s).value=""); $("#qiInfo").textContent=""; render(); };
-$("#expandAll").onclick = ()=>{ if(isFiltering()) inters.forEach(i=>searchOpen.add(i.key)); else collapsed.clear(); render(); };
-$("#collapseAll").onclick = ()=>{ if(isFiltering()) searchOpen.clear(); else inters.forEach(i=>collapsed.add(i.key)); render(); };
+$("#expandAll").onclick = ()=>{ inters.forEach(i=>(isFiltering() ? searchOpen : expanded).add(i.key)); render(); };
+$("#collapseAll").onclick = ()=>{ (isFiltering() ? searchOpen : expanded).clear(); render(); };
 $("#addInterBtn").onclick = ()=>openInter();
 
 $("#list").addEventListener("click", e=>{
@@ -999,7 +999,7 @@ $("#list").addEventListener("click", e=>{
   if(ds.addinter) return openInter();
   if(ds.copy){ navigator.clipboard?.writeText(ds.copy).then(()=>toast("Copied "+ds.copy)).catch(()=>{}); return; }
   if(ds.toggle){
-    const k=ds.toggle, set = isFiltering() ? searchOpen : collapsed;
+    const k=ds.toggle, set = isFiltering() ? searchOpen : expanded;
     set.has(k)?set.delete(k):set.add(k);
     t.parentElement.classList.toggle("collapsed");
   }
@@ -1142,7 +1142,7 @@ iform.addEventListener("submit", async e=>{
         await db.collection("devices").doc(id).set({...rest, street1:v.street1, street2:v.street2, updated:new Date().toISOString()});
       }
       if(old.docId && old.docId!==interDocId(newKey)) await db.collection("intersections").doc(old.docId).delete();
-      if(collapsed.delete(old.key)) collapsed.add(newKey);
+      if(expanded.delete(old.key)) expanded.add(newKey);
     } else if(old && (old.street1!==v.street1 || old.street2!==v.street2)){
       // same intersection, spelling/capitalisation changed: keep devices in step
       for(const d of old.devices){
@@ -1150,6 +1150,7 @@ iform.addEventListener("submit", async e=>{
         await db.collection("devices").doc(id).set({...rest, street1:v.street1, street2:v.street2});
       }
     }
+    expanded.add(newKey); searchOpen.add(newKey);
     toast(old ? "Intersection updated" : "Intersection added");
     closeInter();
   }catch(ex){ err.textContent = writeError(ex); }
@@ -1365,11 +1366,13 @@ form.addEventListener("submit", async e=>{
     if(editingId){
       const prev = devices.find(x=>x.id===editingId)||{};
       await db.collection("devices").doc(editingId).set({...d, created: prev.created||now, updated: now});
+      expanded.add(interKey(d.street1, d.street2)); searchOpen.add(interKey(d.street1, d.street2));
       toast("Device updated");
       closeEdit();
     } else {
       const ref = db.collection("devices").doc();
       await ref.set({...d, created: now, updated: now});
+      expanded.add(interKey(d.street1, d.street2)); searchOpen.add(interKey(d.street1, d.street2));
       if(again){
         toast(`${d.name} added — ready for the next one`);
         await startAnother(d.ip, ref.id, interKey(d.street1, d.street2));
