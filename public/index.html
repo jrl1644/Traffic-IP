@@ -320,6 +320,12 @@
         <input name="number" placeholder="e.g. INT-1042" autocomplete="off" style="text-transform:uppercase">
         <span class="hint" id="numWarn" style="color:var(--danger)"></span>
       </label>
+      <label class="f">ATMS ID <span class="hint">optional</span>
+        <input name="atmsId" placeholder="e.g. 1042" autocomplete="off">
+      </label>
+      <label class="f">Port <span class="hint">optional</span>
+        <input name="atmsPort" inputmode="numeric" placeholder="e.g. 10001" autocomplete="off" style="font-family:var(--mono)">
+      </label>
       <label class="f full">GPS coordinates <span class="hint">optional — latitude, longitude</span>
         <span style="display:flex;gap:6px">
           <input name="gps" placeholder="e.g. 45.5231, -122.6765 — or paste a Google Maps link" autocomplete="off" style="font-family:var(--mono)">
@@ -564,7 +570,7 @@
     <h2>Print <span id="printWhat" style="font-weight:600"></span></h2>
     <p class="hint" style="margin:0 0 6px;font-size:14px">Choose the columns to print. The page has the intersection as its heading and lists every device there.</p>
     <div class="printcols" id="printCols"></div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:4px"><input type="checkbox" id="printInfo" style="width:auto;min-height:0" checked> Include intersection ID, GPS and notes</label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:4px"><input type="checkbox" id="printInfo" style="width:auto;min-height:0" checked> Include intersection ID, ATMS ID &amp; port, GPS and notes</label>
     <div class="ferr" id="printErr"></div>
     <div class="actions">
       <button class="btn" id="printCancel">Cancel</button>
@@ -621,7 +627,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-23";
+const APP_VERSION = "26.11.11-24";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -845,11 +851,11 @@ function rebuild(){
   inters = new Map();
   interDocs.forEach(i=>{
     const key = interKey(i.street1,i.street2);
-    if(!inters.has(key)) inters.set(key,{key, street1:fixStreet(i.street1), street2:fixStreet(i.street2), number:String(i.number||"").toUpperCase(), notes:i.notes||"", gps:(typeof i.lat==="number" && typeof i.lon==="number") ? {lat:i.lat, lon:i.lon} : null, docId:i.id, devices:[]});
+    if(!inters.has(key)) inters.set(key,{key, street1:fixStreet(i.street1), street2:fixStreet(i.street2), number:String(i.number||"").toUpperCase(), atmsId:String(i.atmsId||""), atmsPort:String(i.atmsPort||""), notes:i.notes||"", gps:(typeof i.lat==="number" && typeof i.lon==="number") ? {lat:i.lat, lon:i.lon} : null, docId:i.id, devices:[]});
   });
   devices.forEach(d=>{
     const key = interKey(d.street1,d.street2);
-    if(!inters.has(key)) inters.set(key,{key, street1:fixStreet(d.street1), street2:fixStreet(d.street2), number:"", notes:"", gps:null, docId:null, devices:[]});
+    if(!inters.has(key)) inters.set(key,{key, street1:fixStreet(d.street1), street2:fixStreet(d.street2), number:"", atmsId:"", atmsPort:"", notes:"", gps:null, docId:null, devices:[]});
     inters.get(key).devices.push(d);
   });
   inters.forEach(i=>i.devices.sort((a,b)=>ipNum(a.ip)-ipNum(b.ip) || String(a.ip).localeCompare(b.ip)));
@@ -857,7 +863,7 @@ function rebuild(){
 const sortedInters = () => [...inters.values()].sort((a,b)=>a.key.localeCompare(b.key,undefined,{numeric:true}));
 
 /* ---------- filtering ---------- */
-const interText = i => [i.street1,i.street2,i.number,i.notes,gpsText(i.gps)].join(" ");
+const interText = i => [i.street1,i.street2,i.number,i.atmsId,i.notes,gpsText(i.gps)].join(" ");
 /* the pool that hands out IPs for a device type */
 const typePool = type => !type ? null : [...pools.values()].find(p=>p.types.some(t=>norm(t)===norm(type))) || null;
 function devText(d,f){
@@ -1109,6 +1115,7 @@ function printableHtml(i, cols, withInfo){
   const nameOf = s => esc(plainStreet(s));
   const info = withInfo ? [
     i.number ? `<div><b>Intersection ID:</b> ${esc(i.number)}</div>` : "",
+    i.atmsId || i.atmsPort ? `<div>${i.atmsId ? `<b>ATMS ID:</b> ${esc(i.atmsId)}` : ""}${i.atmsId && i.atmsPort ? " &nbsp;·&nbsp; " : ""}${i.atmsPort ? `<b>Port:</b> ${esc(i.atmsPort)}` : ""}</div>` : "",
     i.gps ? `<div><b>GPS:</b> ${esc(gpsText(i.gps))}</div>` : "",
     i.notes ? `<div><b>Notes:</b> ${esc(i.notes)}</div>` : "",
   ].join("") : "";
@@ -1233,7 +1240,7 @@ function openInter(inter){
   editingInterKey = inter?.key || null;
   $("#interTitle").textContent = inter ? "Edit intersection" : "Add intersection";
   $("#delInterBtn").classList.toggle("hidden", !(inter && can("inters.remove")));
-  ["number","notes"].forEach(f=>iform.elements[f].value = inter?.[f]||"");
+  ["number","atmsId","atmsPort","notes"].forEach(f=>iform.elements[f].value = inter?.[f]||"");
   iform.elements.gps.value = gpsText(inter?.gps);
   [["street1","dir1"],["street2","dir2"]].forEach(([f,d])=>{
     const sp = splitDir(inter?.[f]||"");
@@ -1257,14 +1264,16 @@ function rangeConflict(r, ownPoolId){
 
 async function saveInterDoc(v, docId){
   const key = interKey(v.street1,v.street2);
-  await db.collection("intersections").doc(docId || interDocId(key)).set({street1:v.street1, street2:v.street2, number:v.number||"", notes:v.notes||"", ...(v.gps ? {lat:v.gps.lat, lon:v.gps.lon} : {}), updated:new Date().toISOString()});
+  await db.collection("intersections").doc(docId || interDocId(key)).set({street1:v.street1, street2:v.street2, number:v.number||"", atmsId:v.atmsId||"", atmsPort:v.atmsPort||"", notes:v.notes||"", ...(v.gps ? {lat:v.gps.lat, lon:v.gps.lon} : {}), updated:new Date().toISOString()});
   return key;
 }
 
 iform.addEventListener("submit", async e=>{
   e.preventDefault();
-  const v = {street1:joinDir(iform.elements.dir1.value, iform.elements.street1.value), street2:joinDir(iform.elements.dir2.value, iform.elements.street2.value), number:tidy(iform.elements.number.value).toUpperCase(), notes:String(iform.elements.notes.value||"").trim()};
+  const v = {street1:joinDir(iform.elements.dir1.value, iform.elements.street1.value), street2:joinDir(iform.elements.dir2.value, iform.elements.street2.value), number:tidy(iform.elements.number.value).toUpperCase(), atmsId:tidy(iform.elements.atmsId.value), atmsPort:tidy(iform.elements.atmsPort.value), notes:String(iform.elements.notes.value||"").trim()};
   const err = $("#ierr");
+  if(v.atmsPort && !(/^\d{1,5}$/.test(v.atmsPort) && +v.atmsPort>=1 && +v.atmsPort<=65535)) return err.textContent = "Port must be a number from 1 to 65535.";
+  if(v.atmsPort) v.atmsPort = String(+v.atmsPort);
   if(!v.street1||!v.street2) return err.textContent="Enter both streets of the intersection.";
   if(norm(v.street1)===norm(v.street2)) return err.textContent="The two streets must be different.";
   const gps = parseGps(iform.elements.gps.value);
