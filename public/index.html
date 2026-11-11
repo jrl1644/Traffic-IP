@@ -82,7 +82,7 @@
   body.mobile header{padding:calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 10px calc(14px + env(safe-area-inset-left));gap:10px;position:sticky;top:0;z-index:6;flex-wrap:nowrap}
   body.mobile main{padding:14px calc(12px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
   body.mobile header h1{font-size:18px;min-width:0}
-  body.mobile .brandlogo{height:30px;max-width:110px}
+  body.mobile header.haslogo{padding-left:calc(var(--logo-w,60px) + 12px + env(safe-area-inset-left))}
   body.mobile header h1 small{display:none}
   body.mobile #menuBtn{flex:none;min-height:40px}
   /* header actions fold into a menu */
@@ -140,10 +140,16 @@
   .ferr{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
   .hint{font-size:12px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
   .colwrap{position:relative}
-  .brandlogo{height:42px;max-width:180px;width:auto;object-fit:contain;display:block;flex:none;border-radius:4px}
-  .logobox{display:flex;align-items:center;justify-content:center;min-height:90px;border:1px dashed var(--line);border-radius:10px;background:var(--sign);margin-bottom:12px;padding:12px}
-  .logobox img{height:42px;max-width:180px;object-fit:contain}
-  .logobox .none{color:rgba(255,255,255,.75);font-size:14px}
+  /* logo fills the header's top-left corner edge to edge (width follows the image's shape) */
+  /* pinned to the header's left edge: always full header height, fixed width from the logo's shape */
+  header{position:relative}
+  .brandslot{position:absolute;left:0;top:0;bottom:0;width:var(--logo-w,84px);overflow:hidden;display:block}
+  .brandslot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  header.haslogo{padding-left:calc(var(--logo-w,84px) + 18px)}
+  .logobox{display:flex;align-items:stretch;height:84px;border-radius:10px;background:var(--sign);margin-bottom:12px;overflow:hidden;color:#fff}
+  .logobox img{height:100%;width:auto;object-fit:cover;display:block}
+  .logobox .fake{display:flex;align-items:center;padding:0 16px;font-weight:700;font-size:18px}
+  .logobox .none{display:flex;align-items:center;padding:0 16px;color:rgba(255,255,255,.75);font-size:14px}
   body:not(.standalone) .saOnly{display:none!important}
   body.standalone .claudeOnly{display:none!important}
   .acctrow .who b{font-weight:600}
@@ -197,7 +203,7 @@
 </head>
 <body>
 <header>
-  <img id="brandLogo" class="brandlogo hidden" alt="Logo">
+  <span id="brandSlot" class="brandslot hidden"><img id="brandLogo" alt="Logo"></span>
   <h1>Traffic-IP <span class="ver" id="appVersion" title="App version (MM.DD.YY-revision)"></span><small>IP-based field devices, organized by street intersection</small></h1>
   <button class="btn mobileOnly" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions">☰ Menu</button>
   <nav id="hdrActions">
@@ -446,7 +452,7 @@
     </section>
 
     <section class="tabpane hidden" data-pane="branding">
-      <p class="hint" style="margin:0 0 10px;font-size:14px">Your logo appears at the top left of the header for everyone. It's resized automatically to fit. PNG, JPG, SVG or WebP. A logo with a transparent background looks best on the green bar.</p>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Your logo or photo fills the top-left corner of the header for everyone (and the sign-in screen in the self-hosted version). It's resized and cropped automatically: square to wide images fill the space; taller or extra-wide ones are trimmed from the center. PNG, JPG, SVG or WebP.</p>
       <div class="logobox" id="logoPreview"><span class="none">No logo yet</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <label class="btn" id="logoPick" style="cursor:pointer">Upload logo…<input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></label>
@@ -526,7 +532,7 @@
 })();
 
 /* App version: MM.DD.YY-revision. Bump on every change. */
-const APP_VERSION = "11.11.26-5";
+const APP_VERSION = "11.11.26-6";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1635,30 +1641,52 @@ async function renderAdmin(){
 function openAdmin(){ showLogo(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
 /* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
 let brandLogo = "";
+const LOGO_MIN_RATIO = 1, LOGO_MAX_RATIO = 4;     // square up to 4× as wide as the header is tall
+function sizeLogo(){
+  const slot = $("#brandSlot"), img = $("#brandLogo"), header = document.querySelector("header");
+  const on = !slot.classList.contains("hidden") && !!img.naturalWidth;
+  header.classList.toggle("haslogo", on);
+  if(!on) return;
+  const ratio = Math.min(LOGO_MAX_RATIO, Math.max(LOGO_MIN_RATIO, img.naturalWidth / img.naturalHeight));
+  // width comes from the header's normal height and the logo's shape (never from the live height, so no layout loops),
+  // capped so the title and buttons keep their room; the image fills whatever height the header has
+  const mobile = document.body.classList.contains("mobile");
+  const w = Math.round(Math.min((mobile ? 60 : 84) * ratio, window.innerWidth * (mobile ? 0.34 : 0.22)));
+  header.style.setProperty("--logo-w", Math.max(mobile ? 56 : 80, w) + "px");
+}
+$("#brandLogo").addEventListener("load", sizeLogo);
+window.addEventListener("resize", sizeLogo);
+
 function showLogo(){
-  const img = $("#brandLogo");
-  if(brandLogo){ img.src = brandLogo; img.classList.remove("hidden"); } else { img.removeAttribute("src"); img.classList.add("hidden"); }
-  $("#logoPreview").innerHTML = brandLogo ? `<img alt="Current logo" src="${esc(brandLogo)}">` : `<span class="none">No logo yet</span>`;
+  const slot = $("#brandSlot"), img = $("#brandLogo");
+  if(brandLogo){ if(img.getAttribute("src")!==brandLogo) img.src = brandLogo; slot.classList.remove("hidden"); sizeLogo(); }
+  else { img.removeAttribute("src"); slot.classList.add("hidden"); sizeLogo(); }
+  $("#logoPreview").innerHTML = brandLogo ? `<img alt="Current logo" src="${esc(brandLogo)}"><span class="fake">Traffic-IP</span>` : `<span class="none">No logo yet — it will fill this corner of the header</span>`;
   $("#logoRemove").classList.toggle("hidden", !brandLogo || !canManage());
   $("#logoPick").classList.toggle("hidden", !canManage());
 }
-/* fit the image to the header (shown 42px tall; stored at 2x for sharp screens) */
+/* resize + crop the upload to fill the header corner: between square and 3:1, trimmed from the center */
 function shrinkLogo(file){
   return new Promise((resolve, reject)=>{
-    if(file.size > 8*1024*1024) return reject(new Error("That file is over 8 MB — pick a smaller image."));
+    if(file.size > 15*1024*1024) return reject(new Error("That file is over 15 MB — pick a smaller image."));
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = ()=>{
       URL.revokeObjectURL(url);
-      const H = 96, MAXW = 420;
-      let w = img.naturalWidth || 300, h = img.naturalHeight || 100;
-      const scale = Math.min(H / h, MAXW / w, 4);
-      w = Math.max(1, Math.round(w*scale)); h = Math.max(1, Math.round(h*scale));
-      const c = document.createElement("canvas"); c.width = w; c.height = h;
-      const ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high"; ctx.drawImage(img, 0, 0, w, h);
+      const iw = img.naturalWidth || 300, ih = img.naturalHeight || 300;
+      const ratio = Math.min(LOGO_MAX_RATIO, Math.max(LOGO_MIN_RATIO, iw / ih));
+      // source crop (center) with the target shape
+      let sw = iw, sh = iw / ratio;
+      if(sh > ih){ sh = ih; sw = ih * ratio; }
+      const sx = (iw - sw) / 2, sy = (ih - sh) / 2;
+      const H = 200, W = Math.round(H * ratio);            // stored at ~2× the header height for sharp screens
+      const c = document.createElement("canvas"); c.width = W; c.height = H;
+      const ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
       let data = c.toDataURL("image/png");
-      if(data.length > 150000) data = c.toDataURL("image/webp", 0.92);
-      if(data.length > 150000) data = c.toDataURL("image/jpeg", 0.9);
-      if(data.length > 200000) return reject(new Error("That image is too detailed to use as a logo — try a simpler one."));
+      if(data.length > 160000) data = c.toDataURL("image/webp", 0.9);
+      if(data.length > 160000) data = c.toDataURL("image/jpeg", 0.88);
+      if(data.length > 220000) data = c.toDataURL("image/jpeg", 0.75);
+      if(data.length > 240000) return reject(new Error("That image is too detailed to store — try a simpler one."));
       resolve(data);
     };
     img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error("That file couldn't be read as an image.")); };

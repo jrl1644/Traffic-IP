@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "11.11.26-5";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "11.11.26-6";   // MM.DD.YY-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 20+ built-ins only.
 "use strict";
 const http = require("http");
@@ -192,6 +192,11 @@ const server = http.createServer(async (req, res) => {
   try {
     if (!p.startsWith("/api/")) return serveStatic(req, res, p);
     if (p === "/api/health") return send(res, 200, { ok: true, version: VERSION });
+    // the logo is public so the sign-in screen can show it (nothing else is readable before signing in)
+    if (p === "/api/branding" && req.method === "GET") {
+      const logo = coll("admin").branding?.logo;
+      return send(res, 200, { logo: typeof logo === "string" && logo.startsWith("data:image/") ? logo : "" });
+    }
 
     // all state-changing API calls must come from the app itself (blocks cross-site form posts)
     if (req.method !== "GET" && req.headers["x-requested-with"] !== "iid") return err(res, 403, "forbidden", "Bad request origin.");

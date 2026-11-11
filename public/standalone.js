@@ -47,9 +47,13 @@
         #authScreen button{margin-top:16px;width:100%;font:inherit;font-weight:600;padding:10px;border-radius:8px;border:none;background:var(--accent,#e0a100);color:#1c2321;cursor:pointer}
         #authScreen .err{color:var(--danger,#b3261e);font-size:13px;min-height:18px;margin-top:10px}
         #authScreen .bar{height:6px;background:var(--sign,#1f6f4a);border-radius:12px 12px 0 0;margin:-26px -26px 20px}
+        #authScreen .logo{display:none;margin:-26px -26px 20px;height:120px;background:var(--sign,#1f6f4a);border-radius:12px 12px 0 0;overflow:hidden;align-items:center;justify-content:center}
+        #authScreen .logo img{max-width:100%;max-height:100%;width:auto;height:100%;object-fit:contain;display:block}
+        #authScreen.haslogo .logo{display:flex} #authScreen.haslogo .bar{display:none}
       </style>
       <form novalidate>
         <div class="bar"></div>
+        <div class="logo"><img alt="Logo"></div>
         <h1>Traffic-IP</h1>
         <p>${setup ? "Welcome! Create the owner account. The owner is always an Admin." : "Sign in to continue."}</p>
         ${setup ? `<label>Your name</label><input name="name" autocomplete="name">` : ""}
@@ -60,6 +64,10 @@
         <div class="err" role="alert"></div>
       </form>`;
     const mount = () => { document.body.appendChild(host); host.querySelector("input").focus(); };
+    // organization logo (public), filling the top of the sign-in card
+    fetch("/api/branding").then(r => r.json()).then(b => {
+      if (b && b.logo) { host.querySelector(".logo img").src = b.logo; host.classList.add("haslogo"); }
+    }).catch(() => {});
     document.body ? mount() : document.addEventListener("DOMContentLoaded", mount);
     const f = host.querySelector("form"), errEl = host.querySelector(".err");
     f.addEventListener("submit", async e => {
