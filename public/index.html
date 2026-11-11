@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Traffic-IP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -68,10 +68,65 @@
   .empty{text-align:center;color:var(--muted);padding:50px 20px;background:var(--panel);border:1px dashed var(--line);border-radius:10px}
   .ipcopy{cursor:pointer;border-bottom:1px dotted var(--muted)}
   @media (max-width:700px){
-    thead{display:none} tr{display:block;padding:8px 0;border-bottom:1px solid var(--line)} tr:last-child{border-bottom:none}
-    td{display:block;border:none;padding:3px 14px} td.act{text-align:left;width:auto}
-    td[data-l]::before{content:attr(data-l)": ";color:var(--muted);font-size:12px;text-transform:uppercase;font-family:var(--sans)}
+    #list thead{display:none} #list tr{display:block;padding:8px 0;border-bottom:1px solid var(--line)} #list tr:last-child{border-bottom:none}
+    #list td{display:block;border:none;padding:3px 14px} #list td.act{text-align:left;width:auto}
+    #list td[data-l]::before{content:attr(data-l)": ";color:var(--muted);font-size:12px;text-transform:uppercase;font-family:var(--sans)}
   }
+  /* ===== layout switch: body.mobile is set by script for phones (iPhone etc.); desktop is untouched ===== */
+  .gsigns,.gmeta{display:contents}
+  body:not(.mobile) .mobileOnly{display:none!important}
+  #hdrActions{display:contents}
+
+  body.mobile{font-size:16px;-webkit-text-size-adjust:100%}
+  /* iPhone notch / home bar */
+  body.mobile header{padding:calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 10px calc(14px + env(safe-area-inset-left));gap:10px;position:sticky;top:0;z-index:6;flex-wrap:nowrap}
+  body.mobile main{padding:14px calc(12px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
+  body.mobile header h1{font-size:18px;min-width:0}
+  body.mobile header h1 small{display:none}
+  body.mobile #menuBtn{flex:none;min-height:40px}
+  /* header actions fold into a menu */
+  body.mobile #hdrActions{display:none;position:absolute;left:0;right:0;top:100%;background:var(--sign);padding:8px calc(14px + env(safe-area-inset-right)) 14px calc(14px + env(safe-area-inset-left));box-shadow:0 10px 20px rgba(0,0,0,.2);flex-direction:column;gap:8px}
+  body.mobile.menu-open #hdrActions{display:flex}
+  body.mobile #hdrActions .btn{width:100%;min-height:46px;text-align:left;font-size:16px}
+  body.mobile #hdrActions .rolechip{align-self:flex-start}
+  /* inputs: 16px stops iPhone zooming in on focus */
+  body.mobile input,body.mobile select,body.mobile textarea{font-size:16px;min-height:44px}
+  body.mobile textarea{min-height:80px}
+  body.mobile .btn{min-height:42px}
+  body.mobile .btn.ghost{padding:8px 12px}
+  /* search + filters */
+  body.mobile .controls{grid-template-columns:1fr;gap:10px}
+  body.mobile .controls .search{grid-column:auto}
+  body.mobile .controls > label:not(.search){display:none}
+  body.mobile.filters-open .controls > label:not(.search){display:flex}
+  body.mobile #filtersBtn{justify-self:start}
+  body.mobile .intersearch .hint{display:none}
+  body.mobile .bar{gap:6px}
+  body.mobile .bar #summary{flex-basis:100%}
+  body.mobile .bar .sp{display:none}
+  body.mobile .bar .btn.ghost{background:var(--panel);border:1px solid var(--line)}
+  body.mobile .colmenu{right:auto;left:0}
+  /* intersection cards: signs on top, details + actions underneath */
+  body.mobile .ghead{flex-wrap:wrap;gap:8px;padding:12px}
+  body.mobile .gsigns{display:flex;align-items:center;gap:8px;flex:1;min-width:0;flex-wrap:wrap}
+  body.mobile .gmeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-basis:100%;padding-left:20px}
+  body.mobile .sign{white-space:nowrap}
+  body.mobile .ghead .count{margin-left:0}
+  body.mobile .gact{margin-left:auto;display:flex;gap:6px}
+  body.mobile .gact .btn{border:1px solid var(--line);background:var(--panel)}
+  body.mobile .maplink{padding:8px 10px}
+  /* device rows stacked as cards (also in landscape) */
+  body.mobile #list thead{display:none} body.mobile #list tr{display:block;padding:10px 0;border-bottom:1px solid var(--line)} body.mobile #list tr:last-child{border-bottom:none}
+  body.mobile #list td{display:block;border:none;padding:3px 14px} body.mobile #list td.act{text-align:left;width:auto;padding-top:6px}
+  body.mobile #list td[data-l]::before{content:attr(data-l)": ";color:var(--muted);font-size:12px;text-transform:uppercase;font-family:var(--sans)}
+  body.mobile #list td.act .btn{border:1px solid var(--line);min-width:88px}
+  /* forms open as full-screen sheets with the buttons always reachable */
+  body.mobile .scrim{padding:0;align-items:stretch}
+  body.mobile .modal{max-width:none!important;border-radius:0;min-height:100%;min-height:100dvh;padding:calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left));display:flex;flex-direction:column}
+  body.mobile .modal .actions{position:sticky;bottom:0;margin-top:auto;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line);flex-wrap:wrap}
+  body.mobile .modal .actions .btn{flex:1 1 auto;min-height:46px}
+  body.mobile .grid2{grid-template-columns:1fr}
+  body.mobile .toast{bottom:calc(20px + env(safe-area-inset-bottom));max-width:92vw;text-align:center}
   /* modal */
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:10}
   .scrim.open{display:flex}
@@ -138,12 +193,15 @@
 <body>
 <header>
   <h1>Traffic-IP <span class="ver" id="appVersion" title="App version (MM.DD.YY-revision)"></span><small>IP-based field devices, organized by street intersection</small></h1>
-  <span class="rolechip hidden" id="roleChip" title="Your role in this app"></span>
-  <button class="btn hidden" id="adminBtn">Admin</button>
-  <button class="btn saOnly" id="acctBtn" title="Your account">Account</button>
-  <button class="btn" id="devListBtn">Device list</button>
-  <button class="btn" id="poolsBtn">Address pools</button>
-  <button class="btn" id="addInterBtn">+ Add intersection</button>
+  <button class="btn mobileOnly" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions">☰ Menu</button>
+  <nav id="hdrActions">
+    <span class="rolechip hidden" id="roleChip" title="Your role in this app"></span>
+    <button class="btn hidden" id="adminBtn">Admin</button>
+    <button class="btn saOnly" id="acctBtn" title="Your account">Account</button>
+    <button class="btn" id="devListBtn">Device list</button>
+    <button class="btn" id="poolsBtn">Address pools</button>
+    <button class="btn" id="addInterBtn">+ Add intersection</button>
+  </nav>
 </header>
 
 <main>
@@ -156,6 +214,7 @@
     <div class="hint" id="qiInfo"></div>
   </div>
   <div class="controls">
+    <button type="button" class="btn mobileOnly" id="filtersBtn" aria-expanded="false">Filters ▾</button>
     <label class="f search"><span>Search everything</span>
       <input id="q" type="search" placeholder="e.g. Main St, 10.20.1., camera, Cabinet 4…" autocomplete="off">
     </label>
@@ -427,8 +486,31 @@
 
 <script src="/standalone.js"></script>
 <script>
+/* ---------- device detection: phone layout vs desktop layout ---------- */
+(function(){
+  const ua = navigator.userAgent || "";
+  const isPhoneUA = /iPhone|iPod|Android.+Mobile|Windows Phone/i.test(ua);
+  const narrow = window.matchMedia("(max-width: 760px)");
+  const apply = () => {
+    const mobile = isPhoneUA || narrow.matches;
+    document.body.classList.toggle("mobile", mobile);
+    document.body.classList.toggle("desktop", !mobile);
+    if(!mobile) document.body.classList.remove("menu-open");
+  };
+  apply();
+  narrow.addEventListener ? narrow.addEventListener("change", apply) : narrow.addListener(apply);
+  // header menu (phones)
+  const menuBtn = document.getElementById("menuBtn");
+  menuBtn.addEventListener("click", e=>{ e.stopPropagation(); const open = document.body.classList.toggle("menu-open"); menuBtn.setAttribute("aria-expanded", open); });
+  document.getElementById("hdrActions").addEventListener("click", e=>{ if(e.target.closest(".btn")) { document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
+  document.addEventListener("click", e=>{ if(!e.target.closest("header")){ document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
+  // filters (phones): Street / Device type / Search in fold away
+  const fb = document.getElementById("filtersBtn");
+  fb.addEventListener("click", ()=>{ const open = document.body.classList.toggle("filters-open"); fb.setAttribute("aria-expanded", open); });
+})();
+
 /* App version: MM.DD.YY-revision. Bump on every change. */
-const APP_VERSION = "11.11.26-3";
+const APP_VERSION = "11.11.26-4";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -784,6 +866,7 @@ function renderColMenu(){
 }
 
 function render(){
+  { const n = ["#fStreet","#fType","#fField"].filter(x=>$(x).value).length; const fb = $("#filtersBtn"); if(fb) fb.textContent = n ? `Filters (${n}) ▾` : "Filters ▾"; }
   const groups = filtered();
   const hlTerms = getTerms(), fld = $("#fField").value;
   const hl = (text,f) => (!fld || fld===f) ? highlight(text,hlTerms) : esc(text);
@@ -806,7 +889,8 @@ function render(){
     return `<section class="group ${isCol?"collapsed":""}">
       <div class="ghead" data-toggle="${k}">
         <span class="caret">▼</span>
-        ${streetChip(i.street1,hl)}<span class="amp">&amp;</span>${streetChip(i.street2,hl)}
+        <span class="gsigns">${streetChip(i.street1,hl)}<span class="amp">&amp;</span>${streetChip(i.street2,hl)}</span>
+        <span class="gmeta">
         ${i.number?(()=>{ const dups = idHolders(i.number,[i.key]);
           return dups.length ? `<span class="idbadge" style="color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)" title="Duplicate ID — also used by ${esc(dups.map(interLabel).join(", "))}">⚠ ${hl(i.number,"street")}</span>`
                              : `<span class="idbadge">${hl(i.number,"street")}</span>`; })():""}
@@ -816,6 +900,7 @@ function render(){
           ${can("devices.add")?`<button class="btn ghost" data-addat="${k}" title="Add a device at this intersection">+ Device</button>`:""}
           ${can("inters.edit")?`<button class="btn ghost" data-editinter="${k}">Edit</button>`:""}
 </span>`:""}
+        </span>
       </div>
       <div class="gbody">
         ${i.notes?`<div class="inotes">${hl(i.notes,"street")}</div>`:""}
