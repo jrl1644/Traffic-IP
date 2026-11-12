@@ -20,7 +20,7 @@
   header{background:var(--sign);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   header h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.2px;flex:1;min-width:220px}
   header h1 .ver{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:0;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:1px 7px;vertical-align:middle;position:relative;top:-1px}
-  header h1 small{display:block;font-weight:400;font-size:13px;opacity:.85}
+  header h1 small{display:block;font-weight:400;font-size:11px;opacity:.85;margin-top:1px}
   .btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer}
   .btn:hover{filter:brightness(.97)}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -254,7 +254,7 @@
 <body>
 <header>
   <span id="brandSlot" class="brandslot hidden"><img id="brandLogo" alt="Icon"></span>
-  <h1>Traffic-IP <span class="ver" id="appVersion" title="App version (YY.MM.DD-revision)"></span><small>IP-based field devices, organized by street intersection</small></h1>
+  <h1>Traffic-IP <span class="ver" id="appVersion" title="App version (YY.MM.DD-revision)"></span><small>Joe Leon</small></h1>
   <button class="btn mobileOnly" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions">☰ Menu</button>
   <nav id="hdrActions">
     <span class="rolechip hidden" id="roleChip" title="Your role in this app"></span>
@@ -635,7 +635,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-27";
+const APP_VERSION = "26.11.11-28";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
