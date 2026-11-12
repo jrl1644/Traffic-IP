@@ -698,7 +698,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-39";
+const APP_VERSION = "26.11.11-40";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1271,8 +1271,28 @@ function printChoice(){
    iPhones report "printing finished" before the print sheet has even drawn its preview, so clearing
    it then would print the intersection list instead. */
 let printDone = null;
+/* Safari on iPhone/iPad often ignores print requests from inside a web app, so there the printout
+   opens as its own page (in a new tab) with a Print button — that always reaches the print sheet. */
+const isIOSSafari = (()=>{ const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  return ios && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua); })();
+function printablePage(i, ch, withBar){
+  const bar = withBar ? `<div class="bar"><button type="button" onclick="window.print()">Print</button><button type="button" class="sec" onclick="window.close()">Close</button><span>If nothing happens, tap <b>Share</b> → <b>Print</b>.</span></div>` : "";
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(interLabel(i))} — Traffic-IP</title><style>${PRINT_CSS}
+    body{margin:24px;background:#fff} @page{margin:14mm} @media print{body{margin:0} .bar{display:none!important}}
+    .bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 18px;padding:10px;border-radius:10px;background:#f1f3f0;font:14px -apple-system,system-ui,sans-serif;color:#333}
+    .bar button{font:600 16px -apple-system,system-ui,sans-serif;padding:10px 22px;border-radius:9px;border:0;background:#1f6f4a;color:#fff}
+    .bar button.sec{background:#fff;color:#1f6f4a;border:1px solid #c9d1cc}
+    @media screen and (max-width:700px){ body{margin:14px} .pr-wrap{overflow-x:auto} .pr-table td{overflow-wrap:normal;white-space:nowrap} }</style><\/head><body>${bar}<div class="pr-wrap">${printableHtml(i, ch.cols, ch.infoKeys)}</div><\/body><\/html>`;
+}
 $("#printGo").onclick = ()=>{
   const i = printInter, ch = printChoice(); if(!i || !ch) return;
+  if(isIOSSafari){
+    const url = URL.createObjectURL(new Blob([printablePage(i, ch, true)], {type:"text/html"}));
+    const w = window.open(url, "_blank");
+    if(w){ closePrint(); setTimeout(()=>URL.revokeObjectURL(url), 60000); return; }
+    URL.revokeObjectURL(url);                     // pop-up blocked: fall back to printing here
+  }
   if(printDone) printDone();
   $("#printArea").innerHTML = `<style>${PRINT_CSS}</style>` + printableHtml(i, ch.cols, ch.infoKeys);
   closePrint();
@@ -1289,7 +1309,7 @@ $("#printGo").onclick = ()=>{
 };
 $("#printSave").onclick = async ()=>{
   const i = printInter, ch = printChoice(); if(!i || !ch) return;
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(interLabel(i))} — Traffic-IP</title><style>${PRINT_CSS} body{margin:24px} @page{margin:14mm} @media print{body{margin:0}}</style><\/head><body>${printableHtml(i, ch.cols, ch.infoKeys)}<\/body><\/html>`;
+  const html = printablePage(i, ch, false);
   try{
     const dl = await window.claude?.use("downloads");
     if(!dl) return $("#printErr").textContent = "Saving files isn't available in this view.";
