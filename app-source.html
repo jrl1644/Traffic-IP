@@ -121,6 +121,19 @@
   body.mobile #list td{display:block;border:none;padding:3px 14px} body.mobile #list td.act{text-align:left;width:auto;padding-top:6px}
   body.mobile #list td[data-l]::before{content:attr(data-l)": ";color:var(--muted);font-size:12px;text-transform:uppercase;font-family:var(--sans)}
   body.mobile #list td.act .btn{border:1px solid var(--line);min-width:88px}
+  /* phones: each device is one short line; tap it to show the details */
+  #list td.msum{display:none}
+  body.mobile #list tr{padding:0}
+  body.mobile #list td.msum{display:flex;align-items:baseline;gap:8px;padding:11px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;min-height:44px;box-sizing:border-box}
+  body.mobile #list td.msum::before{content:none}
+  body.mobile #list .mcaret{color:var(--muted);font-size:12px;transition:transform .15s;flex:none}
+  body.mobile #list tr.mopen .mcaret{transform:rotate(90deg)}
+  body.mobile #list .mname{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  body.mobile #list .mip{font-family:var(--mono);font-size:13.5px;white-space:nowrap}
+  body.mobile #list .mtype{font-size:12px;color:var(--muted);white-space:nowrap;max-width:28%;overflow:hidden;text-overflow:ellipsis}
+  body.mobile #list tr:not(.mopen) td:not(.msum){display:none}
+  body.mobile #list tr.mopen{padding-bottom:10px;background:rgba(127,127,127,.04)}
+  body.mobile #list tr.mopen td[data-l="Device"],body.mobile #list tr.mopen td[data-l="Type"]{display:none}
   /* forms open as full-screen sheets with the buttons always reachable */
   body.mobile .scrim{padding:0;align-items:stretch}
   body.mobile .modal{max-width:none!important;border-radius:0;min-height:100%;min-height:100dvh;padding:calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left));display:flex;flex-direction:column}
@@ -673,7 +686,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-35";
+const APP_VERSION = "26.11.11-36";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1024,6 +1037,7 @@ const cfValue = (d, f) => { const v = d?.custom?.[f.id]; return v===undefined ||
 const cfShow = (d, f) => { const v = cfValue(d, f); return f.type==="date" && v ? (fmtDate(v+"T12:00:00") || v) : v; };
 const allCols = () => [...COLUMNS, ...customFields.map(f=>({key:"cf_"+f.id, label:f.label, on:false, custom:f,
   cell:(d,hl)=>{ const v = cfShow(d,f); return `<td data-l="${esc(f.label)}">${v ? hl(v,"custom") : dash}</td>`; }}))];
+const mobOpen = new Set();             // phones: devices whose details are opened (all start collapsed)
 const COLS_KEY = "intersection-inventory-columns";
 let visibleCols = new Set(COLUMNS.filter(c=>c.on).map(c=>c.key));
 try{ const saved = JSON.parse(localStorage.getItem(COLS_KEY)||"null"); if(Array.isArray(saved) && saved.length) visibleCols = new Set(saved.filter(k=>COLUMNS.some(c=>c.key===k) || /^cf_/.test(k))); }catch{}
@@ -1078,7 +1092,8 @@ function render(){
         ${i.notes?`<div class="inotes">${hl(i.notes,"street")}</div>`:""}
         ${devs.length ? `<table>
         <thead><tr>${shownCols().map(c=>`<th>${c.label}</th>`).join("")}<th></th></tr></thead>
-        <tbody>${devs.map(d=>`<tr>
+        <tbody>${devs.map(d=>`<tr class="${mobOpen.has(d.id)?"mopen":""}">
+          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span><span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(d.ip,"ip")}</span><span class="mtype">${hl(d.type,"type")}</span></td>
           ${shownCols().map(c=>c.cell(d,hl)).join("")}
           <td class="act">${can("devices.edit")?`<button class="btn ghost" data-edit="${esc(d.id)}">Edit</button>`:""}</td>
         </tr>`).join("")}</tbody></table>`
@@ -1129,13 +1144,14 @@ $("#addInterBtn").onclick = ()=>openInter();
 
 $("#list").addEventListener("click", e=>{
   if(e.target.closest("a.maplink")) return;   // let the map link open without toggling the card
-  const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-print],[data-toggle]");
+  const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-print],[data-mtoggle],[data-toggle]");
   if(!t) return;
   const ds = t.dataset;
   if(ds.edit) return openEdit(devices.find(d=>d.id===ds.edit));
   if(ds.addat) return openEdit(null, ds.addat);
   if(ds.editinter) return openInter(inters.get(ds.editinter));
   if(ds.print) return openPrint(inters.get(ds.print));
+  if(ds.mtoggle){ const open = !mobOpen.has(ds.mtoggle); open ? mobOpen.add(ds.mtoggle) : mobOpen.delete(ds.mtoggle); t.closest("tr").classList.toggle("mopen", open); t.setAttribute("aria-expanded", open); return; }
   if(ds.addinter) return openInter();
   if(ds.copy){ navigator.clipboard?.writeText(ds.copy).then(()=>toast("Copied "+ds.copy)).catch(()=>{}); return; }
   if(ds.toggle){
