@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-41";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-42";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -171,6 +171,8 @@ function describeChange(c, before, after, id) {
   const diffs = diffFields(before, after);
   return `${verb} ${what}${diffs.length ? " — " + diffs.join("; ") : ""}`;
 }
+/* a date in the server's time zone (TZ), e.g. 2026-11-11 — not UTC */
+function localDate(d) { const z = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; }
 /* "Safari on iPhone", "Chrome on Windows"… from the browser's user-agent */
 function deviceName(req) {
   const ua = String(req.headers["user-agent"] || "");
@@ -588,7 +590,7 @@ const server = http.createServer(async (req, res) => {
     /* --- backup (admins) --- */
     if (p === "/api/backup" && req.method === "GET") {
       if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can download backups.");
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = localDate(new Date());
       res.writeHead(200, { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="traffic-ip-backup-${stamp}.json"`, "Cache-Control": "no-store" });
       return res.end(JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: exportCollections() }, null, 1));
     }
@@ -616,7 +618,7 @@ const server = http.createServer(async (req, res) => {
         logChange(u, "restore", null, null, `Reset the database — clean start (deleted ${old.devices} device${old.devices === 1 ? "" : "s"} and ${old.intersections} intersection${old.intersections === 1 ? "" : "s"}; a copy was saved on the server)`);
         console.log(`Database reset by ${u.username} (${old.devices} devices, ${old.intersections} intersections removed; copy in backups/before-reset-${stamp}.json).`);
       } else {
-        logChange(u, "restore", null, null, `Restored a backup from ${String(b.exported || "an unknown date").slice(0, 10)} (${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections)`);
+        logChange(u, "restore", null, null, `Restored a backup from ${b.exported && !isNaN(new Date(b.exported)) ? localDate(new Date(b.exported)) : "an unknown date"} (${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections)`);
         console.log(`Backup restored by ${u.username}: ${Object.keys(next.devices || {}).length} devices, ${Object.keys(next.intersections || {}).length} intersections.`);
       }
       setTimeout(() => broadcast({ type: "reload" }), 300);   // every open page reloads with the restored data

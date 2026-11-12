@@ -694,7 +694,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-41";
+const APP_VERSION = "26.11.11-42";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -2226,7 +2226,8 @@ $("#cfList").addEventListener("click", e=>{
 /* ---------- backup & restore (all data) ---------- */
 const BACKUP_COLLS = ["intersections","devices","pools","deviceOptions","members"];
 const ADMIN_DOCS = ["config","branding","settings","fields"];
-const today = () => new Date().toISOString().slice(0,10);
+/* today's date where you are (not UTC), e.g. 2026-11-11 */
+const today = () => { const d = new Date(), z = n => String(n).padStart(2,"0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; };
 async function readAll(){
   const collections = {};
   for(const c of BACKUP_COLLS){
