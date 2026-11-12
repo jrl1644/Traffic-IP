@@ -673,7 +673,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-34";
+const APP_VERSION = "26.11.11-35";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1164,8 +1164,15 @@ document.querySelectorAll("#printScrim [data-pall],#printScrim [data-pnone]").fo
   $("#"+(b.dataset.pall||b.dataset.pnone)).querySelectorAll("input").forEach(x=>x.checked = !!b.dataset.pall);
 });
 function printColsChosen(){ return allCols().filter(c=>$("#printCols").querySelector(`input[value="${c.key}"]`)?.checked); }
+/* the default app icon (self-hosted), fetched once and kept as data for the printout */
+let printLogoData = "";
+function preloadPrintLogo(){
+  if(brandLogo || printLogoData || !window.__STANDALONE) return;
+  fetch("/favicon.png").then(r=>r.ok ? r.blob() : null).then(b=>{ if(!b) return; const fr = new FileReader(); fr.onload = ()=>{ printLogoData = String(fr.result||""); }; fr.readAsDataURL(b); }).catch(()=>{});
+}
 function openPrint(i){
   if(!i) return;
+  preloadPrintLogo();
   printInter = i;
   let chosen; try{ chosen = JSON.parse(localStorage.getItem(PRINT_KEY)||"null"); }catch{}
   const on = new Set(Array.isArray(chosen) && chosen.length ? chosen : [...visibleCols]);
@@ -1184,7 +1191,7 @@ function printableHtml(i, cols, infoKeys){
   const devs = i.devices;
   const who = me.name || me.username || "";
   return `<div class="pr">
-    <div class="pr-head">${(()=>{ const logo = brandLogo || (window.__STANDALONE ? "/favicon.png" : "");
+    <div class="pr-head">${(()=>{ const logo = brandLogo || printLogoData;
       return logo ? `<img class="pr-logo" alt="" src="${esc(logo)}">` : ""; })()}<h1 class="pr-title">${nameOf(i.street1)} &amp; ${nameOf(i.street2)}</h1></div>
     ${info ? `<div class="pr-info">${info}</div>` : ""}
     ${devs.length ? `<table class="pr-table"><thead><tr><th class="pr-n">#</th>${cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead>
@@ -1216,16 +1223,22 @@ function printChoice(){
   try{ localStorage.setItem(PRINT_INFO_KEY, JSON.stringify(infoKeys)); }catch{}
   return {cols, infoKeys};
 }
+/* Print runs straight from the tap: everything (logo included) is ready beforehand, so phones
+   open their print sheet at once and nothing is cleared until printing has finished. */
+let printDone = null;
 $("#printGo").onclick = ()=>{
   const i = printInter, ch = printChoice(); if(!i || !ch) return;
+  if(printDone) printDone();
   $("#printArea").innerHTML = `<style>${PRINT_CSS}</style>` + printableHtml(i, ch.cols, ch.infoKeys);
   closePrint();
   const title = document.title; document.title = `${interLabel(i)} — Traffic-IP`;
   document.body.classList.add("printing");
-  const done = () => { document.body.classList.remove("printing"); document.title = title; $("#printArea").innerHTML = ""; window.removeEventListener("afterprint", done); };
-  window.addEventListener("afterprint", done);
-  const imgs = [...$("#printArea").querySelectorAll("img")].map(im => im.complete ? null : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 2000); })).filter(Boolean);
-  Promise.all(imgs).then(()=>setTimeout(()=>{ try{ window.print(); }catch{} setTimeout(()=>{ if(document.body.classList.contains("printing") && !window.matchMedia("print").matches) done(); }, 1500); }, 50));
+  const mq = window.matchMedia("print");
+  const onMq = e => { if(!e.matches) setTimeout(()=>printDone && printDone(), 500); };
+  printDone = () => { document.body.classList.remove("printing"); document.title = title; $("#printArea").innerHTML = ""; window.removeEventListener("afterprint", printDone); mq.removeEventListener?.("change", onMq); printDone = null; };
+  window.addEventListener("afterprint", printDone);
+  mq.addEventListener?.("change", onMq);
+  try{ window.print(); }catch{}
 };
 $("#printSave").onclick = async ()=>{
   const i = printInter, ch = printChoice(); if(!i || !ch) return;
