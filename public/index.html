@@ -570,7 +570,7 @@
           <label class="f">Username<input name="username" autocomplete="off" placeholder="e.g. jsmith"></label>
           <label class="f">Email <span class="hint">optional</span><input name="email" type="email" autocomplete="off"></label>
           <label class="f">Role<select name="role"><option value="technician">Technician</option><option value="viewer">Viewer</option><option value="admin">Admin</option></select></label>
-          <label class="f full">Temporary password <span class="hint">at least 8 characters — share it with them; they can change it after signing in</span>
+          <label class="f full">Temporary password <span class="hint">at least 8 characters — share it with them; they'll be asked to choose their own password the first time they sign in</span>
             <span style="display:flex;gap:6px"><input name="password" autocomplete="new-password" style="font-family:var(--mono)"><button type="button" class="btn" id="genPw">Generate</button></span></label>
           <div class="full" style="display:flex;justify-content:flex-end"><button class="btn primary" type="submit">Create account</button></div>
         </form>
@@ -743,7 +743,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-44";
+const APP_VERSION = "26.11.11-45";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -2498,7 +2498,7 @@ async function renderAccounts(){
   $("#acctList").querySelectorAll("[data-uid]").forEach(el=>{
     const u = users.find(x=>x.id===el.dataset.uid);
     el.querySelector(".nm2").textContent = (u.name || u.username) + (u.id===me.id ? " (you)" : "") + (u.disabled ? " · disabled" : "");
-    el.querySelector(".sub").textContent = [u.username, u.email, u.lastLogin ? "last sign-in " + fmtDate(u.lastLogin) : "never signed in"].filter(Boolean).join(" · ");
+    el.querySelector(".sub").textContent = [u.username, u.email, u.lastLogin ? "last sign-in " + fmtDate(u.lastLogin) : "never signed in", u.mustChange && !u.owner ? "has a temporary password" : ""].filter(Boolean).join(" · ");
   });
   $("#acctList")._users = users;
 }
@@ -2524,7 +2524,7 @@ $("#acctList").addEventListener("click", e=>{
   const who = esc(u.name || u.username);
   if(b.dataset.act==="pw"){
     const pw = genPassword();
-    openConfirm("Reset password?", `Set a new temporary password for <b>${who}</b>? They'll be signed out everywhere.<br><br>New password: <b style="font-family:var(--mono);user-select:all">${pw}</b><br><small>Copy it before confirming and give it to them.</small>`, "Reset password",
+    openConfirm("Reset password?", `Set a new temporary password for <b>${who}</b>? They'll be signed out everywhere.<br><br>New password: <b style="font-family:var(--mono);user-select:all">${pw}</b><br><small>Copy it before confirming and give it to them. They'll be asked to choose their own password when they next sign in.</small>`, "Reset password",
       async ()=>{ await window.__api("PATCH",`/api/users/${id}`,{password:pw}); toast("Password reset"); renderAccounts(); });
   } else if(b.dataset.act==="toggle"){
     openConfirm(u.disabled ? "Enable account?" : "Disable account?", u.disabled ? `<b>${who}</b> will be able to sign in again.` : `<b>${who}</b> will be signed out and can't sign in until enabled again.`, u.disabled ? "Enable" : "Disable",

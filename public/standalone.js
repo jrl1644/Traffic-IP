@@ -29,9 +29,17 @@
       try { s = await api("GET", "/api/session"); break; }
       catch { await new Promise(r => setTimeout(r, 2000)); }
     }
-    if (s.user) { session = s.user; return; }
-    await new Promise(resolve => showAuth(s.needsSetup, resolve));
-    session = (await api("GET", "/api/session")).user;
+    let typed = "";
+    if (!s.user) {
+      typed = await new Promise(resolve => showAuth(s.needsSetup, resolve));
+      s = await api("GET", "/api/session");
+    }
+    // first sign-in with a temporary password (or after an admin reset): pick a new one before anything else
+    if (s.user && s.user.mustChange) {
+      await new Promise(resolve => showNewPassword(s.user, typed, resolve));
+      s = await api("GET", "/api/session");
+    }
+    session = s.user;
   })();
 
   function showAuth(setup, done) {
@@ -75,9 +83,56 @@
       const v = Object.fromEntries(new FormData(f));
       if (setup && v.password !== v.confirm) { errEl.textContent = "The passwords don't match."; return; }
       f.querySelector("button").disabled = true; errEl.textContent = "";
-      try { await api("POST", setup ? "/api/setup" : "/api/login", v); host.remove(); done(); }
+      try { await api("POST", setup ? "/api/setup" : "/api/login", v); host.remove(); done(setup ? "" : v.password); }
       catch (ex) { errEl.textContent = ex.message || "Couldn't sign in."; }
       finally { f.querySelector("button").disabled = false; }
+    });
+  }
+
+  /* ---------- new password (temporary passwords must be replaced) ---------- */
+  function showNewPassword(user, current, done) {
+    const host = document.createElement("div");
+    host.id = "authScreen";
+    host.innerHTML = `
+      <style>
+        #authScreen{position:fixed;inset:0;z-index:50;background:var(--bg,#f4f5f2);display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans,system-ui)}
+        #authScreen form{background:var(--panel,#fff);border:1px solid var(--line,#ddd);border-radius:12px;padding:26px;width:100%;max-width:380px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+        #authScreen h1{margin:0 0 4px;font-size:20px;color:var(--ink,#111)} #authScreen p{margin:0 0 16px;color:var(--muted,#666);font-size:14px}
+        #authScreen label{display:block;font-size:12px;font-weight:600;color:var(--muted,#666);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 4px}
+        #authScreen input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--panel,#fff);color:var(--ink,#111)}
+        #authScreen button{margin-top:16px;width:100%;font:inherit;font-weight:600;padding:10px;border-radius:8px;border:none;background:var(--accent,#e0a100);color:#1c2321;cursor:pointer}
+        #authScreen button.link{background:none;color:var(--muted,#666);font-weight:400;margin-top:8px;padding:6px}
+        #authScreen .err{color:var(--danger,#b3261e);font-size:13px;min-height:18px;margin-top:10px}
+        #authScreen .bar{height:6px;background:var(--sign,#1f6f4a);border-radius:12px 12px 0 0;margin:-26px -26px 20px}
+      </style>
+      <form novalidate>
+        <div class="bar"></div>
+        <h1>Choose a new password</h1>
+        <p>Hi ${String(user.name || user.username).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]))} — you signed in with a temporary password. Pick your own to continue.</p>
+        <input type="text" name="username" autocomplete="username" value="" hidden>
+        ${current ? "" : `<label>Temporary password</label><input name="current" type="password" autocomplete="current-password" required>`}
+        <label>New password <span style="text-transform:none;font-weight:400;letter-spacing:0">(at least 8 characters)</span></label><input name="password" type="password" autocomplete="new-password" required>
+        <label>Confirm new password</label><input name="confirm" type="password" autocomplete="new-password" required>
+        <button type="submit">Save and continue</button>
+        <button type="button" class="link">Sign out</button>
+        <div class="err" role="alert"></div>
+      </form>`;
+    host.querySelector('[name=username]').value = user.username || "";
+    const mount = () => { document.body.appendChild(host); host.querySelector("input:not([hidden])").focus(); };
+    document.body ? mount() : document.addEventListener("DOMContentLoaded", mount);
+    const f = host.querySelector("form"), errEl = host.querySelector(".err"), btn = f.querySelector("button[type=submit]");
+    host.querySelector("button.link").onclick = async () => { try { await api("POST", "/api/logout"); } catch {} location.reload(); };
+    f.addEventListener("submit", async e => {
+      e.preventDefault();
+      const v = Object.fromEntries(new FormData(f));
+      const cur = current || v.current || "";
+      if (String(v.password || "").length < 8) { errEl.textContent = "Passwords need at least 8 characters."; return; }
+      if (v.password !== v.confirm) { errEl.textContent = "The new passwords don't match."; return; }
+      if (v.password === cur) { errEl.textContent = "Choose a password that's different from the temporary one."; return; }
+      btn.disabled = true; errEl.textContent = "";
+      try { await api("POST", "/api/me/password", { current: cur, password: v.password }); host.remove(); done(); }
+      catch (ex) { errEl.textContent = ex.message || "Couldn't save the password."; if (current && /current password/i.test(ex.message || "")) location.reload(); }
+      finally { btn.disabled = false; }
     });
   }
 

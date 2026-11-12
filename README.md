@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-44** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-45** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -64,6 +64,8 @@ Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=Experime
 The app detects the device it runs on. iPhones and other phones (and any window narrower than about 760px) get a touch layout: a **☰ Menu** for the header actions, folding **Filters**, larger buttons, intersection cards with their actions underneath, and forms as full-screen sheets with the buttons always in reach. Desktops keep the full layout.
 
 ## Accounts, roles and privileges
+
+New accounts get a temporary password from an admin. The first time someone signs in with it, they must choose their own password before they can use the app. The same happens after an admin resets someone's password.
 
 Open **Admin** in the header (Admins only).
 

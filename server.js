@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-44";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-45";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -227,7 +227,7 @@ function checkPassword(u, pw) {
   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(u.hash, "hex"));
 }
 function validPassword(pw) { return typeof pw === "string" && pw.length >= 8; }
-const publicUser = u => ({ id: u.id, username: u.username, name: u.name || "", email: u.email || "", role: userRole(u), owner: !!u.owner, disabled: !!u.disabled, created: u.created, lastLogin: u.lastLogin || null });
+const publicUser = u => ({ id: u.id, username: u.username, name: u.name || "", email: u.email || "", role: userRole(u), owner: !!u.owner, disabled: !!u.disabled, mustChange: !!u.mustChange, created: u.created, lastLogin: u.lastLogin || null });
 function checkLogin(username, pw) { const u = findUser(username); const ok = checkPassword(u || DUMMY, String(pw || "")); return u && ok ? u : null; }
 const tokenKey = t => crypto.createHash("sha256").update(t).digest("hex");   // the database never holds a usable sign-in token
 function newSession(u) {
@@ -263,7 +263,7 @@ function failed(key) { const f = fails.get(key) || { n: 0, t: Date.now() }; if (
 // first admin from environment, if provided and no users exist
 if (!userCount() && process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD) {
   const id = "u_" + crypto.randomBytes(8).toString("hex");
-  saveUser({ id, username: process.env.ADMIN_USERNAME.trim(), name: process.env.ADMIN_NAME || "Administrator", owner: true, role: "admin", created: new Date().toISOString(), ...hashPassword(process.env.ADMIN_PASSWORD) });
+  saveUser({ id, username: process.env.ADMIN_USERNAME.trim(), name: process.env.ADMIN_NAME || "Administrator", owner: true, role: "admin", mustChange: true, created: new Date().toISOString(), ...hashPassword(process.env.ADMIN_PASSWORD) });
   logChange(null, "account", "users", id, `Created owner account ${process.env.ADMIN_USERNAME.trim()} (from settings)`);
   console.log(`Created owner account "${process.env.ADMIN_USERNAME}" from environment.`);
 }
@@ -489,6 +489,8 @@ const server = http.createServer(async (req, res) => {
     /* --- everything below needs a signed-in user --- */
     const u = sessionUser(req);
     if (!u) return err(res, 401, "unauthenticated", "Please sign in.");
+    // an account with a temporary password can do nothing else until its owner picks a new one
+    if (u.mustChange && p !== "/api/me/password") return err(res, 403, "password_change_required", "Choose a new password first.");
 
     if (p === "/api/me/password" && req.method === "POST") {
       const b = await readBody(req);
@@ -496,9 +498,11 @@ const server = http.createServer(async (req, res) => {
       if (throttled(pk)) return err(res, 429, "resource_exhausted", "Too many attempts. Try again in 10 minutes.");
       if (!checkPassword(u, b.current || "")) { failed(pk); return err(res, 400, "invalid_argument", "Your current password is wrong."); }
       if (!validPassword(b.password)) return err(res, 400, "invalid_argument", "Passwords need at least 8 characters.");
+      if (String(b.password) === String(b.current || "")) return err(res, 400, "invalid_argument", "Choose a password that's different from the current one.");
+      const wasTemp = !!u.mustChange; delete u.mustChange;
       Object.assign(u, hashPassword(b.password)); saveUser(u);
       Q.delUserSessions.run(u.id, u._token);
-      logChange(u, "account", "users", u.id, `${u.username} changed their own password`);
+      logChange(u, "account", "users", u.id, wasTemp ? `${u.username} replaced their temporary password` : `${u.username} changed their own password`);
       return send(res, 200, { ok: true });
     }
 
@@ -531,7 +535,7 @@ const server = http.createServer(async (req, res) => {
         if (findUser(username)) return err(res, 409, "conflict", `The username ${username} is taken.`);
         if (!validPassword(b.password)) return err(res, 400, "invalid_argument", "Passwords need at least 8 characters.");
         const nid = "u_" + crypto.randomBytes(8).toString("hex");
-        const nu = { id: nid, username, name: String(b.name || "").trim(), email: String(b.email || "").trim(), role: ROLES.includes(b.role) ? b.role : "technician", created: new Date().toISOString(), ...hashPassword(b.password) };
+        const nu = { id: nid, username, name: String(b.name || "").trim(), email: String(b.email || "").trim(), role: ROLES.includes(b.role) ? b.role : "technician", mustChange: true, created: new Date().toISOString(), ...hashPassword(b.password) };
         saveUser(nu);
         logChange(u, "account", "users", nid, `Created account ${username} (${ROLE_LABEL[nu.role]})`);
         return send(res, 200, publicUser(nu));
@@ -550,7 +554,7 @@ const server = http.createServer(async (req, res) => {
         if ("name" in b && String(b.name || "").trim() !== (t.name || "")) { notes.push(`Changed ${t.username}'s name`); t.name = String(b.name || "").trim(); }
         if ("email" in b && String(b.email || "").trim() !== (t.email || "")) { notes.push(`Changed ${t.username}'s email`); t.email = String(b.email || "").trim(); }
         if ("disabled" in b && !!b.disabled !== !!t.disabled) { notes.push(`${b.disabled ? "Disabled" : "Enabled"} account ${t.username}`); t.disabled = !!b.disabled; }
-        if ("password" in b) { notes.push(`Reset ${t.username}'s password`); Object.assign(t, hashPassword(b.password)); }
+        if ("password" in b) { notes.push(`Reset ${t.username}'s password`); Object.assign(t, hashPassword(b.password)); if (t.id !== u.id) t.mustChange = true; }
         saveUser(t);
         if (t.disabled || "password" in b) Q.delUserSessions.run(t.id, u._token);
         for (const n of notes) logChange(u, "account", "users", t.id, n);
