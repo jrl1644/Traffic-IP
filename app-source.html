@@ -271,6 +271,9 @@
   .inotes{padding:8px 14px;color:var(--muted);font-size:14px;border-bottom:1px solid var(--line);background:var(--chip)}
   .noDev{padding:14px;color:var(--muted);font-size:14px}
   .ghead .gact{display:flex;gap:2px}
+  /* desktop: Map sits on the right, just before the device count */
+  body:not(.mobile) .ghead .maplink{margin-left:auto}
+  body:not(.mobile) .ghead .maplink + .count{margin-left:0}
   .hidden{display:none!important}
   .ptable td,.ptable th{padding:8px 10px}
   .poollist{border:1px solid var(--line);border-radius:8px}
@@ -735,7 +738,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-49";
+const APP_VERSION = "26.11.11-50";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
