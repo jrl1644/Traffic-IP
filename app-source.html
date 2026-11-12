@@ -690,7 +690,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-38";
+const APP_VERSION = "26.11.11-39";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1259,8 +1259,9 @@ function printChoice(){
   try{ localStorage.setItem(PRINT_INFO_KEY, JSON.stringify(infoKeys)); }catch{}
   return {cols, infoKeys};
 }
-/* Print runs straight from the tap: everything (logo included) is ready beforehand, so phones
-   open their print sheet at once and nothing is cleared until printing has finished. */
+/* Print runs straight from the tap. The printout stays in place until you next touch the page:
+   iPhones report "printing finished" before the print sheet has even drawn its preview, so clearing
+   it then would print the intersection list instead. */
 let printDone = null;
 $("#printGo").onclick = ()=>{
   const i = printInter, ch = printChoice(); if(!i || !ch) return;
@@ -1269,11 +1270,13 @@ $("#printGo").onclick = ()=>{
   closePrint();
   const title = document.title; document.title = `${interLabel(i)} — Traffic-IP`;
   document.body.classList.add("printing");
-  const mq = window.matchMedia("print");
-  const onMq = e => { if(!e.matches) setTimeout(()=>printDone && printDone(), 500); };
-  printDone = () => { document.body.classList.remove("printing"); document.title = title; $("#printArea").innerHTML = ""; window.removeEventListener("afterprint", printDone); mq.removeEventListener?.("change", onMq); printDone = null; };
-  window.addEventListener("afterprint", printDone);
-  mq.addEventListener?.("change", onMq);
+  let armed = null;
+  printDone = () => {
+    clearTimeout(armed);
+    document.removeEventListener("pointerdown", printDone, true); document.removeEventListener("keydown", printDone, true);
+    document.body.classList.remove("printing"); document.title = title; $("#printArea").innerHTML = ""; printDone = null;
+  };
+  armed = setTimeout(()=>{ document.addEventListener("pointerdown", printDone, true); document.addEventListener("keydown", printDone, true); }, 800);
   try{ window.print(); }catch{}
 };
 $("#printSave").onclick = async ()=>{

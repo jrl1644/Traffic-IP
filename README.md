@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-38** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-39** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
