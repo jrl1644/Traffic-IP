@@ -413,6 +413,7 @@
         <input name="mac" placeholder="00:1A:2B:3C:4D:5E" style="font-family:var(--mono)">
       </label>
       <div class="full grid2 hidden" id="cfBox" style="margin:0"></div>
+      <div class="full hidden" id="cfManageRow" style="margin-top:-4px"><button type="button" class="btn ghost" id="cfManageBtn" style="padding-left:0">⚙ Custom fields…</button></div>
       <label class="f full">Notes <span class="hint">optional — location in cabinet, model, install date…</span>
         <textarea name="notes" rows="2"></textarea>
       </label>
@@ -425,6 +426,29 @@
       <button type="submit" class="btn primary" id="saveBtn">Save</button>
     </div>
   </form>
+</div>
+
+<!-- Custom device fields (admins; opened from the device form) -->
+<div class="scrim" id="cfScrim">
+  <div class="modal" style="max-width:620px">
+    <h2>Custom device fields</h2>
+      <p class="hint" style="margin:-6px 0 12px;font-size:14px">Extra fields on the Add / Edit device form, for example Serial number, Firmware or Install date. They apply to every device and can also be shown as columns, printed and searched. Only admins can change them.</p>
+      <div id="cfList"></div>
+      <form id="cfForm" novalidate class="cfform">
+        <div style="font-weight:600;grid-column:1/-1" id="cfFormTitle">Add a field</div>
+        <label class="f">Field name<input name="label" maxlength="40" autocomplete="off" placeholder="e.g. Serial number"></label>
+        <label class="f">Type<select name="type"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Dropdown list</option></select></label>
+        <label class="f full hidden" id="cfOptsWrap">Dropdown choices <span class="hint">separate with commas</span><input name="options" autocomplete="off" placeholder="e.g. Pole, Cabinet, Mast arm"></label>
+        <label class="full" style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" name="required" style="width:auto;min-height:0"> Required — a device can't be saved without it</label>
+        <div class="full ferr" id="cfErr" style="margin:0"></div>
+        <div class="full" style="display:flex;justify-content:flex-end;gap:8px">
+          <button type="button" class="btn hidden" id="cfCancel">Cancel</button>
+          <button type="submit" class="btn primary" id="cfSave">Add field</button>
+        </div>
+      </form>
+
+    <div class="actions"><button type="button" class="btn" id="cfClose">Done</button></div>
+  </div>
 </div>
 
 <!-- Address pools -->
@@ -550,22 +574,6 @@
         <div class="hint" id="pingStatus" style="margin-top:8px;min-height:18px"></div>
       </div>
 
-      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Custom device fields</h3>
-      <p class="hint" style="margin:0 0 10px;font-size:14px">Extra fields shown when adding or editing a device, for example Serial number, Firmware or Install date. They can also be shown as columns, printed and searched.</p>
-      <div id="cfList"></div>
-      <form id="cfForm" novalidate class="cfform">
-        <div style="font-weight:600;grid-column:1/-1" id="cfFormTitle">Add a field</div>
-        <label class="f">Field name<input name="label" maxlength="40" autocomplete="off" placeholder="e.g. Serial number"></label>
-        <label class="f">Type<select name="type"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Dropdown list</option></select></label>
-        <label class="f full hidden" id="cfOptsWrap">Dropdown choices <span class="hint">separate with commas</span><input name="options" autocomplete="off" placeholder="e.g. Pole, Cabinet, Mast arm"></label>
-        <label class="full" style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" name="required" style="width:auto;min-height:0"> Required — a device can't be saved without it</label>
-        <div class="full ferr" id="cfErr" style="margin:0"></div>
-        <div class="full" style="display:flex;justify-content:flex-end;gap:8px">
-          <button type="button" class="btn hidden" id="cfCancel">Cancel</button>
-          <button type="submit" class="btn primary" id="cfSave">Add field</button>
-        </div>
-      </form>
-
       <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Backup &amp; Restore</h3>
       <p class="hint" style="margin:0 0 10px;font-size:14px">A backup holds all the app's data: intersections, devices, address pools, the Device list, roles &amp; privileges, custom device fields and the custom icon<span class="saOnly"> (user accounts and passwords aren't included and aren't changed by a restore)</span>. Backups work in both the claude.ai and self-hosted versions.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -668,7 +676,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-29";
+const APP_VERSION = "26.11.11-30";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1455,6 +1463,7 @@ function openEdit(dev, presetKey){
   $("#typeHint").textContent = "";
   $("#newDevName").value = "";
   renderCfInputs(dev?.custom || {});
+  $("#cfManageRow").classList.toggle("hidden", !canManage());
   fillDevSelect(dev?.name || "");
   fillInterSelect(dev ? interKey(dev.street1,dev.street2) : presetKey);
   $("#ferr").textContent=""; delete $("#ferr").dataset.outsideOk;
@@ -1642,7 +1651,7 @@ $("#confirmDel").onclick = async ()=>{
 };
 
 document.addEventListener("keydown", e=>{
-  if(e.key==="Escape"){ if($("#printScrim").classList.contains("open")) return closePrint(); if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#devListScrim").classList.contains("open")) return closeDevList(); if($("#adminScrim").classList.contains("open")) return closeAdmin(); closeEdit(); closeInter(); closePools(); }
+  if(e.key==="Escape"){ if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#cfScrim").classList.contains("open")) return closeCfManager(); if($("#printScrim").classList.contains("open")) return closePrint(); if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#devListScrim").classList.contains("open")) return closeDevList(); if($("#adminScrim").classList.contains("open")) return closeAdmin(); closeEdit(); closeInter(); closePools(); }
   if(e.key==="/" && !["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)){ e.preventDefault(); $("#qi").focus(); }
 });
 ["#editScrim","#interScrim","#delScrim","#poolScrim","#devListScrim","#adminScrim"].forEach(s=>$(s).addEventListener("mousedown",e=>{ if(e.target===$(s)) $(s).classList.remove("open"); }));
@@ -1885,7 +1894,7 @@ async function renderAdmin(){
     PERMS.map(([k,label])=>`<tr><td>${esc(label)}</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" data-role="${r}" data-perm="${k}" ${roleCfg.roles[r].perms[k]?"checked":""} ${(r==="admin"||ro)?"disabled":""}></td>`).join("")}</tr>`).join("") +
     `<tr><td>Open this Admin menu</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" ${r==="admin"?"checked":""} disabled></td>`).join("")}</tr></tbody>`;
 }
-function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); resetCfForm(); renderCfAdmin(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
 /* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
 let brandLogo = "";
 const LOGO_MIN_RATIO = 1, LOGO_MAX_RATIO = 4;     // square up to 4× as wide as the header is tall
@@ -2077,8 +2086,18 @@ function resetCfForm(){
 }
 async function saveCustomFields(list, msg){
   await db.doc("admin/fields").set({list, updated:new Date().toISOString()});
-  customFields = list; renderCfAdmin(); render(); toast(msg);
+  customFields = list; renderCfAdmin(); render(); refreshCfInputs(); toast(msg);
 }
+/* re-draw the device form's custom inputs, keeping whatever was typed */
+function refreshCfInputs(){
+  if(!$("#editScrim").classList.contains("open")) return;
+  const cur = {}; form.querySelectorAll("#cfBox [name^=cf_]").forEach(el=>{ cur[el.name.slice(3)] = el.value; });
+  renderCfInputs({...(editingId ? devices.find(x=>x.id===editingId)?.custom : {}), ...cur});
+}
+function openCfManager(){ if(!canManage()) return; resetCfForm(); renderCfAdmin(); $("#cfScrim").classList.add("open"); setTimeout(()=>$("#cfForm").elements.label.focus(), 30); }
+function closeCfManager(){ $("#cfScrim").classList.remove("open"); resetCfForm(); refreshCfInputs(); }
+$("#cfManageBtn").onclick = openCfManager;
+$("#cfClose").onclick = closeCfManager;
 $("#cfForm").elements.type.addEventListener("change", e=>$("#cfOptsWrap").classList.toggle("hidden", e.target.value!=="select"));
 $("#cfCancel").onclick = resetCfForm;
 $("#cfForm").addEventListener("submit", async e=>{
@@ -2497,8 +2516,8 @@ update();
     const raw = snap.exists && Array.isArray(snap.data().list) ? snap.data().list : [];
     customFields = raw.filter(f=>f && typeof f.id==="string" && typeof f.label==="string").map(f=>({id:f.id, label:f.label, type:["text","number","date","select"].includes(f.type)?f.type:"text", options:Array.isArray(f.options)?f.options.map(String):[], required:!!f.required}));
     render(); renderColMenu();
-    if($("#adminScrim").classList.contains("open")) renderCfAdmin();
-    if($("#editScrim").classList.contains("open")){ const cur = {}; customFields.forEach(f=>{ const el = form.elements["cf_"+f.id]; if(el) cur[f.id] = el.value; }); renderCfInputs({...(editingId ? devices.find(x=>x.id===editingId)?.custom : {}), ...cur}); }
+    if($("#cfScrim").classList.contains("open")) renderCfAdmin();
+    refreshCfInputs();
   }, ()=>{});
   db.doc("admin/config").onSnapshot(snap=>{
     const c = snap.exists ? snap.data() : {};
