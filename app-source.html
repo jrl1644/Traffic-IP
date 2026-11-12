@@ -129,6 +129,14 @@
   body.mobile .grid2{grid-template-columns:1fr}
   body.mobile .toast{bottom:calc(20px + env(safe-area-inset-bottom));max-width:92vw;text-align:center}
   /* modal */
+  .cfform{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:10px}
+  .cfform .full{grid-column:1/-1}
+  body.mobile .cfform{grid-template-columns:1fr}
+  .cfrow{display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .cfrow:last-child{border-bottom:none}
+  .cfrow .nm{flex:1;min-width:140px;font-weight:500}
+  .cfrow .nm small{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
+  .cfrow .btn{padding:4px 8px}
   .printcols{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:4px 0 10px}
   .printcols label{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
   .printcols input{width:auto;min-height:0}
@@ -397,6 +405,7 @@
       <label class="f">MAC address <span class="hint">optional</span>
         <input name="mac" placeholder="00:1A:2B:3C:4D:5E" style="font-family:var(--mono)">
       </label>
+      <div class="full grid2 hidden" id="cfBox" style="margin:0"></div>
       <label class="f full">Notes <span class="hint">optional — location in cabinet, model, install date…</span>
         <textarea name="notes" rows="2"></textarea>
       </label>
@@ -534,8 +543,24 @@
         <div class="hint" id="pingStatus" style="margin-top:8px;min-height:18px"></div>
       </div>
 
+      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Custom device fields</h3>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Extra fields shown when adding or editing a device, for example Serial number, Firmware or Install date. They can also be shown as columns, printed and searched.</p>
+      <div id="cfList"></div>
+      <form id="cfForm" novalidate class="cfform">
+        <div style="font-weight:600;grid-column:1/-1" id="cfFormTitle">Add a field</div>
+        <label class="f">Field name<input name="label" maxlength="40" autocomplete="off" placeholder="e.g. Serial number"></label>
+        <label class="f">Type<select name="type"><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Dropdown list</option></select></label>
+        <label class="f full hidden" id="cfOptsWrap">Dropdown choices <span class="hint">separate with commas</span><input name="options" autocomplete="off" placeholder="e.g. Pole, Cabinet, Mast arm"></label>
+        <label class="full" style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" name="required" style="width:auto;min-height:0"> Required — a device can't be saved without it</label>
+        <div class="full ferr" id="cfErr" style="margin:0"></div>
+        <div class="full" style="display:flex;justify-content:flex-end;gap:8px">
+          <button type="button" class="btn hidden" id="cfCancel">Cancel</button>
+          <button type="submit" class="btn primary" id="cfSave">Add field</button>
+        </div>
+      </form>
+
       <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Backup &amp; Restore</h3>
-      <p class="hint" style="margin:0 0 10px;font-size:14px">A backup holds all the app's data: intersections, devices, address pools, the Device list, roles &amp; privileges and the custom icon<span class="saOnly"> (user accounts and passwords aren't included and aren't changed by a restore)</span>. Backups work in both the claude.ai and self-hosted versions.</p>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">A backup holds all the app's data: intersections, devices, address pools, the Device list, roles &amp; privileges, custom device fields and the custom icon<span class="saOnly"> (user accounts and passwords aren't included and aren't changed by a restore)</span>. Backups work in both the claude.ai and self-hosted versions.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button type="button" class="btn primary" id="backupBtn">Download backup</button>
         <label class="btn" id="restorePick" style="cursor:pointer">Restore from backup…<input type="file" id="restoreFile" accept=".json,application/json" hidden></label>
@@ -635,7 +660,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-28";
+const APP_VERSION = "26.11.11-29";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -878,7 +903,7 @@ function devText(d,f){
   switch(f){
     case "ip": return d.ip; case "name": return d.name; case "type": return d.type;
     case "mac": return d.mac||""; case "notes": return d.notes||"";
-    default: return [d.ip,d.name,d.type,d.mac,d.notes].join(" ");
+    default: return [d.ip,d.name,d.type,d.mac,d.notes,...customFields.map(f=>cfShow(d,f))].join(" ");
   }
 }
 function getTerms(){ return norm($("#q").value).split(/\s+/).filter(Boolean); }
@@ -980,13 +1005,19 @@ const COLUMNS = [
   {key:"created", label:"Added",     on:false, cell:d=>`<td data-l="Added" style="white-space:nowrap">${fmtDate(d.created)||dash}</td>`},
   {key:"updated", label:"Last updated", on:false, cell:d=>`<td data-l="Updated" style="white-space:nowrap">${fmtDate(d.updated)||dash}</td>`},
 ];
+/* custom device fields (set by admins) become extra columns */
+let customFields = [];                 // [{id, label, type:"text"|"number"|"date"|"select", options:[], required}]
+const cfValue = (d, f) => { const v = d?.custom?.[f.id]; return v===undefined || v===null ? "" : String(v); };
+const cfShow = (d, f) => { const v = cfValue(d, f); return f.type==="date" && v ? (fmtDate(v+"T12:00:00") || v) : v; };
+const allCols = () => [...COLUMNS, ...customFields.map(f=>({key:"cf_"+f.id, label:f.label, on:false, custom:f,
+  cell:(d,hl)=>{ const v = cfShow(d,f); return `<td data-l="${esc(f.label)}">${v ? hl(v,"custom") : dash}</td>`; }}))];
 const COLS_KEY = "intersection-inventory-columns";
 let visibleCols = new Set(COLUMNS.filter(c=>c.on).map(c=>c.key));
-try{ const saved = JSON.parse(localStorage.getItem(COLS_KEY)||"null"); if(Array.isArray(saved) && saved.length) visibleCols = new Set(saved.filter(k=>COLUMNS.some(c=>c.key===k))); }catch{}
-const shownCols = () => COLUMNS.filter(c=>visibleCols.has(c.key));
+try{ const saved = JSON.parse(localStorage.getItem(COLS_KEY)||"null"); if(Array.isArray(saved) && saved.length) visibleCols = new Set(saved.filter(k=>COLUMNS.some(c=>c.key===k) || /^cf_/.test(k))); }catch{}
+const shownCols = () => allCols().filter(c=>visibleCols.has(c.key));
 function saveCols(){ try{ localStorage.setItem(COLS_KEY, JSON.stringify([...visibleCols])); }catch{} }
 function renderColMenu(){
-  $("#colMenu").innerHTML = COLUMNS.map(c=>`<label><input type="checkbox" value="${c.key}" ${visibleCols.has(c.key)?"checked":""} ${visibleCols.size===1&&visibleCols.has(c.key)?"disabled title='Keep at least one column'":""}> ${c.label}</label>`).join("")
+  $("#colMenu").innerHTML = allCols().map(c=>`<label><input type="checkbox" value="${c.key}" ${visibleCols.has(c.key)?"checked":""} ${shownCols().length===1&&visibleCols.has(c.key)?"disabled title='Keep at least one column'":""}> ${esc(c.label)}</label>`).join("")
     + `<div class="colfoot"><button type="button" class="btn ghost" id="colAll">Show all</button><button type="button" class="btn ghost" id="colReset">Reset</button></div>`;
 }
 
@@ -1072,7 +1103,7 @@ $("#colMenu").addEventListener("change", e=>{
   saveCols(); renderColMenu(); render();
 });
 $("#colMenu").addEventListener("click", e=>{
-  if(e.target.id==="colAll") visibleCols = new Set(COLUMNS.map(c=>c.key));
+  if(e.target.id==="colAll") visibleCols = new Set(allCols().map(c=>c.key));
   else if(e.target.id==="colReset") visibleCols = new Set(COLUMNS.filter(c=>c.on).map(c=>c.key));
   else return;
   saveCols(); renderColMenu(); render();
@@ -1108,14 +1139,14 @@ const PRINT_VAL = {
   mac: d => d.mac, notes: d => d.notes, created: d => fmtDate(d.created), updated: d => fmtDate(d.updated),
 };
 let printInter = null;
-function printColsChosen(){ return COLUMNS.filter(c=>$("#printCols").querySelector(`input[value="${c.key}"]`)?.checked); }
+function printColsChosen(){ return allCols().filter(c=>$("#printCols").querySelector(`input[value="${c.key}"]`)?.checked); }
 function openPrint(i){
   if(!i) return;
   printInter = i;
   let chosen; try{ chosen = JSON.parse(localStorage.getItem(PRINT_KEY)||"null"); }catch{}
   const on = new Set(Array.isArray(chosen) && chosen.length ? chosen : [...visibleCols]);
   $("#printWhat").textContent = interLabel(i);
-  $("#printCols").innerHTML = COLUMNS.map(c=>`<label><input type="checkbox" value="${c.key}" ${on.has(c.key)?"checked":""}> ${esc(c.label)}</label>`).join("");
+  $("#printCols").innerHTML = allCols().map(c=>`<label><input type="checkbox" value="${c.key}" ${on.has(c.key)?"checked":""}> ${esc(c.label)}</label>`).join("");
   $("#printErr").textContent = "";
   $("#printScrim").classList.add("open");
 }
@@ -1135,7 +1166,7 @@ function printableHtml(i, cols, withInfo){
       return logo ? `<img class="pr-logo" alt="" src="${esc(logo)}">` : ""; })()}<h1 class="pr-title">${nameOf(i.street1)} &amp; ${nameOf(i.street2)}</h1></div>
     ${info ? `<div class="pr-info">${info}</div>` : ""}
     ${devs.length ? `<table class="pr-table"><thead><tr><th class="pr-n">#</th>${cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead>
-      <tbody>${devs.map((d,n)=>`<tr><td class="pr-n">${n+1}</td>${cols.map(c=>`<td class="pr-${c.key}">${esc(PRINT_VAL[c.key](d) || "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+      <tbody>${devs.map((d,n)=>`<tr><td class="pr-n">${n+1}</td>${cols.map(c=>`<td class="pr-${c.custom ? "cf" : c.key}">${esc((c.custom ? cfShow(d, c.custom) : PRINT_VAL[c.key](d)) || "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`
       : `<p>No devices at this intersection.</p>`}
     <div class="pr-foot">${devs.length} device${devs.length===1?"":"s"} · Printed ${esc(new Date().toLocaleString(undefined,{year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}${who?` by ${esc(who)}`:""} · Traffic-IP v${esc(APP_VERSION)}</div>
   </div>`;
@@ -1415,6 +1446,7 @@ function openEdit(dev, presetKey){
   fillTypeSelect(dev?.type || "");
   $("#typeHint").textContent = "";
   $("#newDevName").value = "";
+  renderCfInputs(dev?.custom || {});
   fillDevSelect(dev?.name || "");
   fillInterSelect(dev ? interKey(dev.street1,dev.street2) : presetKey);
   $("#ferr").textContent=""; delete $("#ferr").dataset.outsideOk;
@@ -1434,6 +1466,7 @@ async function startAnother(savedIp, savedId, interKeyToKeep){
   await waitFor(()=>inters.has(interKeyToKeep) && devices.some(x=>x.id===savedId));
   const type = curType();
   ["mac","notes","ip"].forEach(f=>form.elements[f].value="");
+  renderCfInputs({});
   $("#newDevName").value = "";
   fillDevSelect("");
   fillInterSelect(interKeyToKeep);
@@ -1486,6 +1519,9 @@ form.addEventListener("submit", async e=>{
   ["name","ip","mac"].forEach(f=>d[f]=tidy(form.elements[f].value));
   d.type = curType();
   d.notes = String(form.elements.notes.value||"").trim();
+  { const cf = readCfInputs(editingId ? devices.find(x=>x.id===editingId)?.custom : null);
+    if(cf.error) return err.textContent = cf.error;
+    if(Object.keys(cf.values).length) d.custom = cf.values; }
   const sel = $("#interSel").value;
   let inter = null, newInter = null;
   if(sel==="__new"){
@@ -1766,6 +1802,8 @@ const LOG_FIELD = {name:"Device", type:"Type", ip:"IP", mac:"MAC", notes:"Notes"
 const logVal = v => v===undefined || v===null || v==="" ? "—" : Array.isArray(v) ? v.join(", ") : typeof v==="object" ? JSON.stringify(v) : String(v);
 function logDetail(before, after){
   if(!before && !after) return "";
+  const flat = o => { if(!o) return o; const {custom, ...rest} = o; if(custom && typeof custom==="object") for(const [k,v] of Object.entries(custom)) rest[customFields.find(f=>f.id===k)?.label || k] = v; return rest; };
+  before = flat(before); after = flat(after);
   const keys = [...new Set([...Object.keys(before||{}), ...Object.keys(after||{})])];
   const both = before && after;
   const rows = keys.filter(k => !both || JSON.stringify(before[k])!==JSON.stringify(after[k]) || ["name","ip"].includes(k)).map(k => {
@@ -1839,7 +1877,7 @@ async function renderAdmin(){
     PERMS.map(([k,label])=>`<tr><td>${esc(label)}</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" data-role="${r}" data-perm="${k}" ${roleCfg.roles[r].perms[k]?"checked":""} ${(r==="admin"||ro)?"disabled":""}></td>`).join("")}</tr>`).join("") +
     `<tr><td>Open this Admin menu</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" ${r==="admin"?"checked":""} disabled></td>`).join("")}</tr></tbody>`;
 }
-function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); resetCfForm(); renderCfAdmin(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
 /* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
 let brandLogo = "";
 const LOGO_MIN_RATIO = 1, LOGO_MAX_RATIO = 4;     // square up to 4× as wide as the header is tall
@@ -1987,9 +2025,95 @@ window.addEventListener("iid-ping", e=>{
   render(); if($("#adminScrim").classList.contains("open")) showPingSettings();
 });
 
+/* ---------- custom device fields ---------- */
+function renderCfInputs(values){
+  const box = $("#cfBox");
+  box.classList.toggle("hidden", !customFields.length);
+  box.innerHTML = customFields.map(f=>{
+    const v = values?.[f.id] ?? "", nm = `cf_${esc(f.id)}`, req = ` <span class="hint">${f.required ? "required" : "optional"}</span>`;
+    const input = f.type==="select"
+      ? `<select name="${nm}"><option value="">—</option>${f.options.map(o=>`<option ${o===String(v)?"selected":""}>${esc(o)}</option>`).join("")}${v!=="" && !f.options.includes(String(v)) ? `<option selected>${esc(v)}</option>` : ""}</select>`
+      : f.type==="date" ? `<input type="date" name="${nm}" value="${esc(v)}">`
+      : f.type==="number" ? `<input name="${nm}" inputmode="decimal" value="${esc(v)}" autocomplete="off">`
+      : `<input name="${nm}" value="${esc(v)}" autocomplete="off" maxlength="500">`;
+    return `<label class="f">${esc(f.label)}${req}${input}</label>`;
+  }).join("");
+}
+/* returns {values} or {error}; values of fields an admin has since removed are kept */
+function readCfInputs(prev){
+  const values = {};
+  if(prev && typeof prev==="object") for(const [k,v] of Object.entries(prev)) if(!customFields.some(f=>f.id===k)) values[k] = v;
+  for(const f of customFields){
+    const el = form.elements["cf_"+f.id]; if(!el) continue;
+    let v = String(el.value||"").trim();
+    if(!v){ if(f.required) return {error:`${f.label} is required.`}; continue; }
+    if(f.type==="number"){ const n = Number(v.replace(/,/g,"")); if(!isFinite(n)) return {error:`${f.label} must be a number.`}; v = String(n); }
+    values[f.id] = v;
+  }
+  return {values};
+}
+let cfEditing = null;
+const cfTypeName = {text:"Text", number:"Number", date:"Date", select:"Dropdown list"};
+function renderCfAdmin(){
+  const ro = !canManage();
+  $("#cfForm").classList.toggle("hidden", ro);
+  $("#cfList").innerHTML = customFields.length ? customFields.map((f,n)=>`<div class="cfrow">
+      <span class="nm">${esc(f.label)}<small>${cfTypeName[f.type]||"Text"}${f.type==="select" ? ": "+esc(f.options.join(", ")) : ""}${f.required ? " · required" : ""}</small></span>
+      ${ro ? "" : `<button type="button" class="btn ghost" data-cfup="${n}" ${n===0?"disabled":""} title="Move up">↑</button><button type="button" class="btn ghost" data-cfdown="${n}" ${n===customFields.length-1?"disabled":""} title="Move down">↓</button><button type="button" class="btn ghost" data-cfedit="${esc(f.id)}">Edit</button><button type="button" class="btn ghost del" data-cfdel="${esc(f.id)}">Remove</button>`}
+    </div>`).join("") : `<div class="noDev" style="padding:2px 0 4px">No custom fields yet.</div>`;
+}
+function resetCfForm(){
+  cfEditing = null; const f = $("#cfForm");
+  f.reset(); $("#cfOptsWrap").classList.add("hidden"); $("#cfErr").textContent = "";
+  $("#cfFormTitle").textContent = "Add a field"; $("#cfSave").textContent = "Add field"; $("#cfCancel").classList.add("hidden");
+}
+async function saveCustomFields(list, msg){
+  await db.doc("admin/fields").set({list, updated:new Date().toISOString()});
+  customFields = list; renderCfAdmin(); render(); toast(msg);
+}
+$("#cfForm").elements.type.addEventListener("change", e=>$("#cfOptsWrap").classList.toggle("hidden", e.target.value!=="select"));
+$("#cfCancel").onclick = resetCfForm;
+$("#cfForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const f = e.target, err = $("#cfErr");
+  const label = tidy(f.elements.label.value), type = f.elements.type.value;
+  const options = type==="select" ? [...new Set(f.elements.options.value.split(",").map(x=>tidy(x)).filter(Boolean))] : [];
+  if(!label) return err.textContent = "Give the field a name.";
+  const builtIn = ["device","type","device type","ip","ip address","ip pool","mac","mac address","notes","added","last updated","intersection"];
+  if(builtIn.includes(norm(label))) return err.textContent = `“${label}” is already a standard device field.`;
+  if(customFields.some(x=>x.id!==cfEditing && norm(x.label)===norm(label))) return err.textContent = `There's already a field called ${label}.`;
+  if(type==="select" && !options.length) return err.textContent = "List the dropdown choices, separated by commas.";
+  if(!cfEditing && customFields.length>=30) return err.textContent = "That's the limit of 30 custom fields.";
+  const field = {id: cfEditing || ("f" + Date.now().toString(36) + Math.random().toString(36).slice(2,6)), label, type, options, required: f.elements.required.checked};
+  const list = cfEditing ? customFields.map(x=>x.id===cfEditing ? field : x) : [...customFields, field];
+  try{ await saveCustomFields(list, cfEditing ? `${label} updated` : `${label} added to the device form`); if(!cfEditing) visibleCols.add("cf_"+field.id), saveCols(); resetCfForm(); render(); }
+  catch(ex){ err.textContent = writeError(ex); }
+});
+$("#cfList").addEventListener("click", e=>{
+  const t = e.target.closest("[data-cfup],[data-cfdown],[data-cfedit],[data-cfdel]"); if(!t) return;
+  const ds = t.dataset;
+  if(ds.cfup || ds.cfdown){
+    const n = +(ds.cfup ?? ds.cfdown), m = ds.cfup ? n-1 : n+1, list = [...customFields];
+    [list[n], list[m]] = [list[m], list[n]];
+    return saveCustomFields(list, "Order saved").catch(ex=>$("#cfErr").textContent = writeError(ex));
+  }
+  const fld = customFields.find(x=>x.id===(ds.cfedit||ds.cfdel)); if(!fld) return;
+  if(ds.cfedit){
+    const f = $("#cfForm"); cfEditing = fld.id;
+    f.elements.label.value = fld.label; f.elements.type.value = fld.type; f.elements.options.value = fld.options.join(", "); f.elements.required.checked = !!fld.required;
+    $("#cfOptsWrap").classList.toggle("hidden", fld.type!=="select");
+    $("#cfFormTitle").textContent = `Edit “${fld.label}”`; $("#cfSave").textContent = "Save field"; $("#cfCancel").classList.remove("hidden"); $("#cfErr").textContent = "";
+    f.elements.label.focus(); return;
+  }
+  const used = devices.filter(d=>cfValue(d,fld)!=="").length;
+  openConfirm(`Remove “${fld.label}”?`,
+    `The field is removed from the device form, columns and printouts.${used ? ` ${used} device${used===1?" has a value":"s have values"} in it. Those values stay in the saved data (and in backups) but are no longer shown.` : ""}`,
+    "Remove field", async ()=>{ await saveCustomFields(customFields.filter(x=>x.id!==fld.id), `${fld.label} removed`); if(cfEditing===fld.id) resetCfForm(); });
+});
+
 /* ---------- backup & restore (all data) ---------- */
 const BACKUP_COLLS = ["intersections","devices","pools","deviceOptions","members"];
-const ADMIN_DOCS = ["config","branding","settings"];
+const ADMIN_DOCS = ["config","branding","settings","fields"];
 const today = () => new Date().toISOString().slice(0,10);
 async function readAll(){
   const collections = {};
@@ -2082,7 +2206,7 @@ async function restoreAll(backup, isReset){
     const adm = c.admin || {};
     for(const id of ADMIN_DOCS){
       if(adm[id] && typeof adm[id]==="object") await db.doc("admin/"+id).set(adm[id]);
-      else await db.doc("admin/"+id).set(id==="branding" ? {logo:""} : {defaultRole:"viewer", ownerId:roleCfg.ownerId||null});
+      else await db.doc("admin/"+id).set(id==="branding" ? {logo:""} : id==="fields" ? {list:[]} : id==="settings" ? {ping:{enabled:false}} : {defaultRole:"viewer", ownerId:roleCfg.ownerId||null});
       tick();
     }
     st.textContent = isReset ? "Database reset — clean start." : `Restored — ${countText(countsOf(c))}.`;
@@ -2360,6 +2484,13 @@ update();
       const icon = await makeAppIcon(brandLogo);
       if(icon) db.doc("admin/branding").set({...b, icon, updated:new Date().toISOString()}).catch(()=>{});
     }
+  }, ()=>{});
+  db.doc("admin/fields").onSnapshot(snap=>{
+    const raw = snap.exists && Array.isArray(snap.data().list) ? snap.data().list : [];
+    customFields = raw.filter(f=>f && typeof f.id==="string" && typeof f.label==="string").map(f=>({id:f.id, label:f.label, type:["text","number","date","select"].includes(f.type)?f.type:"text", options:Array.isArray(f.options)?f.options.map(String):[], required:!!f.required}));
+    render(); renderColMenu();
+    if($("#adminScrim").classList.contains("open")) renderCfAdmin();
+    if($("#editScrim").classList.contains("open")){ const cur = {}; customFields.forEach(f=>{ const el = form.elements["cf_"+f.id]; if(el) cur[f.id] = el.value; }); renderCfInputs({...(editingId ? devices.find(x=>x.id===editingId)?.custom : {}), ...cur}); }
   }, ()=>{});
   db.doc("admin/config").onSnapshot(snap=>{
     const c = snap.exists ? snap.data() : {};

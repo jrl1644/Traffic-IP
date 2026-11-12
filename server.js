@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-28";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-29";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -124,7 +124,15 @@ function stripImages(v) {
   for (const [k, x] of Object.entries(v)) o[k] = typeof x === "string" && x.startsWith("data:") ? `[image, ${Math.round(x.length / 1365)} KB]` : stripImages(x);
   return o;
 }
+function flatCustom(d) {
+  if (!d || !d.custom || typeof d.custom !== "object") return d;
+  const labels = Object.fromEntries((adminDoc("fields").list || []).map(f => [f.id, f.label]));
+  const { custom, ...rest } = d;
+  for (const [k, v] of Object.entries(custom)) rest[labels[k] || k] = v;
+  return rest;
+}
 function diffFields(before, after) {
+  before = flatCustom(before); after = flatCustom(after);
   const keys = [...new Set([...Object.keys(before || {}), ...Object.keys(after || {})])].filter(k => !SKIP_FIELDS.has(k));
   const out = [];
   for (const k of keys) {
@@ -145,9 +153,19 @@ function describeChange(c, before, after, id) {
     case "intersections": what = `intersection ${d.street1 || "?"} & ${d.street2 || "?"}${d.number ? ` [${d.number}]` : ""}`; break;
     case "pools": what = `IP pool ${d.name || ""}${d.range ? ` (${d.range})` : ""}`; break;
     case "deviceOptions": what = `“${d.name || ""}” in the Device list`; break;
-    case "admin": what = ({ config: "role privileges", branding: "custom icon", settings: "settings" })[id] || "admin settings"; break;
+    case "admin": what = ({ config: "role privileges", branding: "custom icon", settings: "settings", fields: "custom device fields" })[id] || "admin settings"; break;
     case "members": what = `member ${d.name || d.email || ""}`; break;
     default: what = `${c} record`;
+  }
+  if (c === "admin" && id === "fields") {
+    const a = Array.isArray(before?.list) ? before.list : [], b = Array.isArray(after?.list) ? after.list : [];
+    const byId = l => Object.fromEntries(l.filter(f => f && f.id).map(f => [f.id, f]));
+    const A = byId(a), B = byId(b), notes = [];
+    for (const f of b) if (f && !A[f.id]) notes.push(`added “${f.label}”`);
+    for (const f of a) if (f && !B[f.id]) notes.push(`removed “${f.label}”`);
+    for (const f of b) if (f && A[f.id] && JSON.stringify(A[f.id]) !== JSON.stringify(f)) notes.push(A[f.id].label !== f.label ? `renamed “${A[f.id].label}” to “${f.label}”` : `changed “${f.label}”`);
+    if (!notes.length && a.map(f => f?.id).join() !== b.map(f => f?.id).join()) notes.push("changed the order");
+    return `Custom device fields: ${notes.join("; ") || "no change"}`;
   }
   if (!before || !after) return `${verb} ${what}`;
   const diffs = diffFields(before, after);
