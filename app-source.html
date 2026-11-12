@@ -138,6 +138,9 @@
   .cfrow .nm small{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
   .cfrow .btn{padding:4px 8px}
   .printcols{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:4px 0 10px}
+  .printgroup{display:flex;align-items:center;gap:4px;margin:6px 0 2px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .printgroup span{flex:1}
+  .printgroup .btn{padding:2px 8px;font-size:12px;text-transform:none;letter-spacing:0}
   .printcols label{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
   .printcols input{width:auto;min-height:0}
   #printArea{display:none}
@@ -610,9 +613,11 @@
 <div class="scrim" id="printScrim">
   <div class="modal" style="max-width:560px">
     <h2>Print <span id="printWhat" style="font-weight:600"></span></h2>
-    <p class="hint" style="margin:0 0 6px;font-size:14px">Choose the columns to print. The page has the intersection as its heading and lists every device there.</p>
+    <p class="hint" style="margin:0 0 10px;font-size:14px">Choose what to print. The page has the intersection as its heading and lists every device there.</p>
+    <div class="printgroup"><span>Intersection details</span><button type="button" class="btn ghost" data-pall="printInfoCols">All</button><button type="button" class="btn ghost" data-pnone="printInfoCols">None</button></div>
+    <div class="printcols" id="printInfoCols"></div>
+    <div class="printgroup"><span>Device columns</span><button type="button" class="btn ghost" data-pall="printCols">All</button><button type="button" class="btn ghost" data-pnone="printCols">None</button></div>
     <div class="printcols" id="printCols"></div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:4px"><input type="checkbox" id="printInfo" style="width:auto;min-height:0" checked> Include intersection ID, ATMS Station ID &amp; port, GPS and notes</label>
     <div class="ferr" id="printErr"></div>
     <div class="actions">
       <button class="btn" id="printCancel">Cancel</button>
@@ -668,7 +673,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-33";
+const APP_VERSION = "26.11.11-34";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1147,6 +1152,17 @@ const PRINT_VAL = {
   mac: d => d.mac, notes: d => d.notes, created: d => fmtDate(d.created), updated: d => fmtDate(d.updated),
 };
 let printInter = null;
+const PRINT_INFO = [
+  {key:"number", label:"Intersection ID", html:i=>i.number ? `<b>Intersection ID:</b> ${esc(i.number)}` : ""},
+  {key:"atmsId", label:"ATMS Station ID", html:i=>i.atmsId ? `<b>ATMS Station ID:</b> ${esc(i.atmsId)}` : ""},
+  {key:"atmsPort", label:"ATMS Port", html:i=>i.atmsPort ? `<b>ATMS Port:</b> ${esc(i.atmsPort)}` : ""},
+  {key:"gps", label:"GPS", html:i=>i.gps ? `<b>GPS:</b> ${esc(gpsText(i.gps))}` : ""},
+  {key:"inotes", label:"Intersection notes", html:i=>i.notes ? `<b>Notes:</b> ${esc(i.notes)}` : ""},
+];
+const PRINT_INFO_KEY = "traffic-ip-print-details";
+document.querySelectorAll("#printScrim [data-pall],#printScrim [data-pnone]").forEach(b=>b.onclick = ()=>{
+  $("#"+(b.dataset.pall||b.dataset.pnone)).querySelectorAll("input").forEach(x=>x.checked = !!b.dataset.pall);
+});
 function printColsChosen(){ return allCols().filter(c=>$("#printCols").querySelector(`input[value="${c.key}"]`)?.checked); }
 function openPrint(i){
   if(!i) return;
@@ -1154,19 +1170,17 @@ function openPrint(i){
   let chosen; try{ chosen = JSON.parse(localStorage.getItem(PRINT_KEY)||"null"); }catch{}
   const on = new Set(Array.isArray(chosen) && chosen.length ? chosen : [...visibleCols]);
   $("#printWhat").textContent = interLabel(i);
+  let info; try{ info = JSON.parse(localStorage.getItem(PRINT_INFO_KEY)||"null"); }catch{}
+  const infoOn = new Set(Array.isArray(info) ? info : PRINT_INFO.map(x=>x.key));
+  $("#printInfoCols").innerHTML = PRINT_INFO.map(x=>`<label><input type="checkbox" value="${x.key}" ${infoOn.has(x.key)?"checked":""}> ${esc(x.label)}</label>`).join("");
   $("#printCols").innerHTML = allCols().map(c=>`<label><input type="checkbox" value="${c.key}" ${on.has(c.key)?"checked":""}> ${esc(c.label)}</label>`).join("");
   $("#printErr").textContent = "";
   $("#printScrim").classList.add("open");
 }
 const closePrint = () => { $("#printScrim").classList.remove("open"); printInter = null; };
-function printableHtml(i, cols, withInfo){
+function printableHtml(i, cols, infoKeys){
   const nameOf = s => esc(plainStreet(s));
-  const info = withInfo ? [
-    i.number ? `<div><b>Intersection ID:</b> ${esc(i.number)}</div>` : "",
-    i.atmsId || i.atmsPort ? `<div>${i.atmsId ? `<b>ATMS Station ID:</b> ${esc(i.atmsId)}` : ""}${i.atmsId && i.atmsPort ? " &nbsp;·&nbsp; " : ""}${i.atmsPort ? `<b>ATMS Port:</b> ${esc(i.atmsPort)}` : ""}</div>` : "",
-    i.gps ? `<div><b>GPS:</b> ${esc(gpsText(i.gps))}</div>` : "",
-    i.notes ? `<div><b>Notes:</b> ${esc(i.notes)}</div>` : "",
-  ].join("") : "";
+  const info = PRINT_INFO.filter(x=>infoKeys.includes(x.key)).map(x=>x.html(i)).filter(Boolean).map(h=>`<div>${h}</div>`).join("");
   const devs = i.devices;
   const who = me.name || me.username || "";
   return `<div class="pr">
@@ -1198,11 +1212,13 @@ function printChoice(){
   const cols = printColsChosen();
   if(!cols.length){ $("#printErr").textContent = "Pick at least one column."; return null; }
   try{ localStorage.setItem(PRINT_KEY, JSON.stringify(cols.map(c=>c.key))); }catch{}
-  return {cols, withInfo: $("#printInfo").checked};
+  const infoKeys = PRINT_INFO.filter(x=>$("#printInfoCols").querySelector(`input[value="${x.key}"]`)?.checked).map(x=>x.key);
+  try{ localStorage.setItem(PRINT_INFO_KEY, JSON.stringify(infoKeys)); }catch{}
+  return {cols, infoKeys};
 }
 $("#printGo").onclick = ()=>{
   const i = printInter, ch = printChoice(); if(!i || !ch) return;
-  $("#printArea").innerHTML = `<style>${PRINT_CSS}</style>` + printableHtml(i, ch.cols, ch.withInfo);
+  $("#printArea").innerHTML = `<style>${PRINT_CSS}</style>` + printableHtml(i, ch.cols, ch.infoKeys);
   closePrint();
   const title = document.title; document.title = `${interLabel(i)} — Traffic-IP`;
   document.body.classList.add("printing");
@@ -1213,7 +1229,7 @@ $("#printGo").onclick = ()=>{
 };
 $("#printSave").onclick = async ()=>{
   const i = printInter, ch = printChoice(); if(!i || !ch) return;
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(interLabel(i))} — Traffic-IP</title><style>${PRINT_CSS} body{margin:24px} @page{margin:14mm} @media print{body{margin:0}}</style><\/head><body>${printableHtml(i, ch.cols, ch.withInfo)}<\/body><\/html>`;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(interLabel(i))} — Traffic-IP</title><style>${PRINT_CSS} body{margin:24px} @page{margin:14mm} @media print{body{margin:0}}</style><\/head><body>${printableHtml(i, ch.cols, ch.infoKeys)}<\/body><\/html>`;
   try{
     const dl = await window.claude?.use("downloads");
     if(!dl) return $("#printErr").textContent = "Saving files isn't available in this view.";
