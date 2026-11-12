@@ -43,6 +43,8 @@
   input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
   .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 16px;color:var(--muted);font-size:14px}
   .bar .sp{flex:1}
+  .sortwrap{display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .sortwrap select{width:auto;padding:5px 8px;min-height:0;font-size:14px}
   .notice{padding:10px 14px;border-radius:8px;background:var(--chip);color:var(--muted);margin-bottom:14px;font-size:14px}
   .notice.err{color:var(--danger)}
   .group{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden}
@@ -108,6 +110,7 @@
   body.mobile .bar{gap:6px}
   body.mobile .bar #summary{flex-basis:100%}
   body.mobile .bar .sp{display:none}
+  body.mobile .sortwrap{flex-basis:100%} body.mobile .sortwrap select{flex:1;min-height:40px;font-size:15px}
   body.mobile .bar .btn.ghost{background:var(--panel);border:1px solid var(--line)}
   body.mobile .colmenu{right:auto;left:0}
   /* intersection cards: signs on top, details + actions underneath */
@@ -331,6 +334,16 @@
   <div class="bar">
     <span id="summary"></span>
     <span class="sp"></span>
+    <label class="sortwrap">Sort <select id="sortSel" aria-label="Sort intersections">
+      <option value="street">Street A → Z</option>
+      <option value="street-desc">Street Z → A</option>
+      <option value="id">Intersection ID</option>
+      <option value="atms">ATMS Station ID</option>
+      <option value="most">Most devices</option>
+      <option value="fewest">Fewest devices</option>
+      <option value="recent">Recently changed</option>
+      <option value="ping" class="saOnly">Ping problems first</option>
+    </select></label>
     <button class="btn ghost" id="expandAll">Expand all</button>
     <button class="btn ghost" id="collapseAll">Collapse all</button>
     <button class="btn ghost" id="clearBtn">Clear filters</button>
@@ -694,7 +707,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-42";
+const APP_VERSION = "26.11.11-43";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -918,7 +931,7 @@ function rebuild(){
   inters = new Map();
   interDocs.forEach(i=>{
     const key = interKey(i.street1,i.street2);
-    if(!inters.has(key)) inters.set(key,{key, street1:fixStreet(i.street1), street2:fixStreet(i.street2), number:String(i.number||"").toUpperCase(), atmsId:String(i.atmsId||""), atmsPort:String(i.atmsPort||""), notes:i.notes||"", gps:(typeof i.lat==="number" && typeof i.lon==="number") ? {lat:i.lat, lon:i.lon} : null, docId:i.id, devices:[]});
+    if(!inters.has(key)) inters.set(key,{key, street1:fixStreet(i.street1), street2:fixStreet(i.street2), number:String(i.number||"").toUpperCase(), atmsId:String(i.atmsId||""), atmsPort:String(i.atmsPort||""), updated:i.updated||"", notes:i.notes||"", gps:(typeof i.lat==="number" && typeof i.lon==="number") ? {lat:i.lat, lon:i.lon} : null, docId:i.id, devices:[]});
   });
   devices.forEach(d=>{
     const key = interKey(d.street1,d.street2);
@@ -928,6 +941,30 @@ function rebuild(){
   inters.forEach(i=>i.devices.sort((a,b)=>ipNum(a.ip)-ipNum(b.ip) || String(a.ip).localeCompare(b.ip)));
 }
 const sortedInters = () => [...inters.values()].sort((a,b)=>a.key.localeCompare(b.key,undefined,{numeric:true}));
+/* the order intersections are listed in (Sort menu; remembered on this device) */
+const SORT_KEY = "traffic-ip-sort";
+let sortBy = (()=>{ try{ return localStorage.getItem(SORT_KEY) || "street"; }catch{ return "street"; } })();
+const byText = (a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:"base"});
+const lastChange = i => [i.updated||"", ...i.devices.map(d=>d.updated||d.created||"")].reduce((m,x)=>x>m?x:m, "");
+function pingRank(i){   // 0 = none reply, 1 = some don't, 2 = waiting, 3 = all reply, 4 = nothing to check
+  const devs = i.devices.filter(d=>d.ip); if(!devs.length || !pingCfg.enabled) return 4;
+  const known = devs.map(d=>pingState.results[String(d.ip).trim()]).filter(Boolean); if(!known.length) return 2;
+  const down = known.filter(r=>!r.ok).length; return down===known.length ? 0 : down ? 1 : 3;
+}
+function orderedInters(){
+  const list = [...inters.values()].sort((a,b)=>byText(interLabel(a), interLabel(b))), blankLast = (x,y,cmp) => (!x && !y) ? 0 : !x ? 1 : !y ? -1 : cmp(x,y);
+  const tie = (a,b) => byText(interLabel(a), interLabel(b));
+  switch(sortBy){
+    case "street-desc": return list.reverse();
+    case "id":     return list.sort((a,b)=>blankLast(a.number,b.number,byText) || tie(a,b));
+    case "atms":   return list.sort((a,b)=>blankLast(a.atmsId,b.atmsId,byText) || tie(a,b));
+    case "most":   return list.sort((a,b)=>b.devices.length-a.devices.length || tie(a,b));
+    case "fewest": return list.sort((a,b)=>a.devices.length-b.devices.length || tie(a,b));
+    case "recent": return list.sort((a,b)=>blankLast(lastChange(a), lastChange(b), (x,y)=>y.localeCompare(x)) || tie(a,b));
+    case "ping":   return list.sort((a,b)=>pingRank(a)-pingRank(b) || tie(a,b));
+    default:       return list;
+  }
+}
 
 /* ---------- filtering ---------- */
 const interText = i => [i.street1,i.street2,i.number,i.atmsId,i.notes,gpsText(i.gps)].join(" ");
@@ -979,7 +1016,7 @@ function filtered(){
   const terms = getTerms(), st=$("#fStreet").value, ty=$("#fType").value, fld=$("#fField").value;
   const iparts = parseInterQuery($("#qi").value);
   const out = [];
-  for(const i of sortedInters()){
+  for(const i of orderedInters()){
     if(st && norm(i.street1)!==st && norm(i.street2)!==st) continue;
     if(!interMatches(iparts, i)) continue;
     let devs = ty ? i.devices.filter(d=>norm(d.type)===ty) : i.devices;
@@ -1165,6 +1202,8 @@ $("#clearBtn").onclick = ()=>{ searchOpen.clear(); ["#qi","#q","#fStreet","#fTyp
 $("#expandAll").onclick = ()=>{ inters.forEach(i=>(isFiltering() ? searchOpen : expanded).add(i.key)); render(); };
 $("#collapseAll").onclick = ()=>{ (isFiltering() ? searchOpen : expanded).clear(); render(); };
 $("#addInterBtn").onclick = ()=>openInter();
+$("#sortSel").value = sortBy; if(!$("#sortSel").value){ sortBy = "street"; $("#sortSel").value = "street"; }
+$("#sortSel").onchange = e=>{ sortBy = e.target.value; try{ localStorage.setItem(SORT_KEY, sortBy); }catch{} render(); };
 
 $("#list").addEventListener("click", e=>{
   if(e.target.closest("a.maplink")) return;   // let the map link open without toggling the card
