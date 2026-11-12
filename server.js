@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.11-40";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.11-41";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -170,6 +170,13 @@ function describeChange(c, before, after, id) {
   if (!before || !after) return `${verb} ${what}`;
   const diffs = diffFields(before, after);
   return `${verb} ${what}${diffs.length ? " — " + diffs.join("; ") : ""}`;
+}
+/* "Safari on iPhone", "Chrome on Windows"… from the browser's user-agent */
+function deviceName(req) {
+  const ua = String(req.headers["user-agent"] || "");
+  const os = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS X|Macintosh/.test(ua) ? "Mac" : /CrOS/.test(ua) ? "ChromeOS" : /Linux/.test(ua) ? "Linux" : "";
+  const br = /Edg\//.test(ua) ? "Edge" : /CriOS|Chrome\//.test(ua) ? "Chrome" : /FxiOS|Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : /curl|wget/i.test(ua) ? "script" : "";
+  return [br, os].filter(Boolean).join(" on ") || "unknown device";
 }
 function logChange(u, action, c, id, summary, before, after) {
   try {
@@ -456,6 +463,7 @@ const server = http.createServer(async (req, res) => {
       const id = "u_" + crypto.randomBytes(8).toString("hex");
       const u = { id, username: String(b.username).trim(), name: String(b.name || "").trim(), email: String(b.email || "").trim(), owner: true, role: "admin", created: new Date().toISOString(), ...hashPassword(b.password) };
       saveUser(u); const t = newSession(u);
+      logChange(u, "login", null, null, `${u.username} signed in (first start) · ${clientIp(req)} · ${deviceName(req)}`);
       logChange(u, "account", "users", id, `Created owner account ${u.username}`);
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie(t, SESSION_DAYS * 86400) });
     }
@@ -464,13 +472,15 @@ const server = http.createServer(async (req, res) => {
       const ip = clientIp(req), key = ip + "|" + String(b.username || "").toLowerCase();
       if (throttled(key) || throttled("ip|" + ip, 50)) return err(res, 429, "resource_exhausted", "Too many attempts. Try again in 10 minutes.");
       const u = checkLogin(b.username, b.password);
-      if (!u) { failed(key); failed("ip|" + ip); return err(res, 401, "unauthenticated", "Wrong username or password."); }
-      if (u.disabled) return err(res, 403, "forbidden", "This account is disabled. Ask an admin.");
+      const who = String(b.username || "").trim().slice(0, 60);
+      if (!u) { failed(key); failed("ip|" + ip); logChange({ username: who || "(blank)" }, "login_failed", null, null, `Failed sign-in for “${who}” — wrong username or password · ${ip} · ${deviceName(req)}`); return err(res, 401, "unauthenticated", "Wrong username or password."); }
+      if (u.disabled) { logChange(u, "login_failed", null, null, `Failed sign-in for ${u.username} — account is disabled · ${ip} · ${deviceName(req)}`); return err(res, 403, "forbidden", "This account is disabled. Ask an admin."); }
       fails.delete(key);
+      logChange(u, "login", null, null, `${u.username} signed in · ${ip} · ${deviceName(req)}`);
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie(newSession(u), SESSION_DAYS * 86400) });
     }
     if (p === "/api/logout" && req.method === "POST") {
-      const u = sessionUser(req); if (u) Q.delSession.run(u._token);
+      const u = sessionUser(req); if (u) { Q.delSession.run(u._token); logChange(u, "logout", null, null, `${u.username} signed out · ${clientIp(req)} · ${deviceName(req)}`); }
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie("", 0) });
     }
 
@@ -557,12 +567,15 @@ const server = http.createServer(async (req, res) => {
 
     /* --- change log (admins): newest first, ?q= search, ?before=<id> for the next page --- */
     if (p === "/api/changelog" && req.method === "GET") {
-      if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can see the change log.");
+      if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can see the logs.");
       const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10) || 50));
       const before = parseInt(url.searchParams.get("before") || "0", 10) || 0;
       const q = String(url.searchParams.get("q") || "").trim().slice(0, 100);
       const where = [], args = [];
       if (before > 0) { where.push("id < ?"); args.push(before); }
+      const type = url.searchParams.get("type");
+      if (type === "logins") where.push("action IN ('login','logout','login_failed')");
+      else if (type === "changes") where.push("action NOT IN ('login','logout','login_failed')");
       for (const word of q.split(/\s+/).filter(Boolean).slice(0, 5)) {
         where.push("(summary LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\')");
         const like = "%" + word.replace(/[\\%_]/g, m => "\\" + m) + "%"; args.push(like, like);

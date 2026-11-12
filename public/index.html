@@ -192,6 +192,7 @@
   .logrow .who{font-size:12px;font-weight:600;grid-column:1}
   .logrow .what{grid-column:2;grid-row:1 / span 2;overflow-wrap:anywhere}
   .logrow .tag{display:inline-block;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:999px;margin-right:6px;background:var(--line);color:var(--ink)}
+  .logrow .tag.login{background:#dde8f6;color:#1d4f8f}.logrow .tag.login_failed{background:#f6dcdc;color:#9b2c2c}.logrow .tag.logout{background:var(--chip);color:var(--muted)}
   .logrow .tag.create{background:#dcefe3;color:#1f6f4a}.logrow .tag.delete{background:#f6dcdc;color:#9b2c2c}.logrow .tag.restore{background:#fbeccb;color:#7a5200}
   .logtable{margin:8px 0 0;border-collapse:collapse;font-size:13px;width:100%}
   .logtable caption{text-align:left;font-size:12px;color:var(--muted);padding-bottom:4px}
@@ -529,7 +530,7 @@
       <button class="tab active" data-tab="people" role="tab"><span class="claudeOnly">People &amp; roles</span><span class="saOnly">Accounts &amp; roles</span></button>
       <button class="tab" data-tab="roles" role="tab">Role privileges</button>
       <button class="tab" data-tab="settings" role="tab">Settings</button>
-      <button class="tab saOnly" data-tab="log" role="tab">Change log</button>
+      <button class="tab saOnly" data-tab="log" role="tab">Logs</button>
     </div>
     <div class="notice hidden" id="adminRO">You can view these settings. Only the owner and people shared as <b>Editor</b> on claude.ai can change them.</div>
 
@@ -605,10 +606,13 @@
     </section>
 
     <section class="tabpane hidden" data-pane="log">
-      <p class="hint" style="margin:0 0 10px;font-size:14px">Every change to intersections, devices, pools, the Device list, settings and accounts: who made it and when. <span id="logKeep"></span></p>
-      <input id="logSearch" placeholder="Search the log — a device, IP, street or username…" autocomplete="off" style="margin-bottom:8px">
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Every change to intersections, devices, pools, the Device list, settings and accounts, and every sign-in: who, what and when. <span id="logKeep"></span></p>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="logSearch" placeholder="Search the logs — a device, IP, street or username…" autocomplete="off" style="flex:1;min-width:0">
+        <select id="logType" style="width:auto"><option value="">Everything</option><option value="changes">Changes</option><option value="logins">Sign-ins</option></select>
+      </div>
       <div id="logList" class="loglist"></div>
-      <div style="display:flex;justify-content:center;margin-top:8px"><button type="button" class="btn hidden" id="logMore">Show older changes</button></div>
+      <div style="display:flex;justify-content:center;margin-top:8px"><button type="button" class="btn hidden" id="logMore">Show older entries</button></div>
     </section>
 
     <div class="ferr" id="aerr"></div>
@@ -698,7 +702,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-40";
+const APP_VERSION = "26.11.11-41";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1896,9 +1900,9 @@ function setTab(t){
   document.querySelectorAll("#adminScrim .tabpane").forEach(p=>p.classList.toggle("hidden", p.dataset.pane!==t));
   if(t==="log") loadLog(true);
 }
-/* ---------- change log (self-hosted version: the server records every change) ---------- */
+/* ---------- logs (self-hosted version: the server records every change and sign-in) ---------- */
 const logState = { last: 0, q: "", busy: false };
-const LOG_TAG = {create:"Added", update:"Changed", delete:"Removed", account:"Account", restore:"Restore"};
+const LOG_TAG = {create:"Added", update:"Changed", delete:"Removed", account:"Account", restore:"Restore", login:"Signed in", logout:"Signed out", login_failed:"Failed sign-in"};
 function logWhen(iso){
   const d = new Date(iso);
   return d.toLocaleString(undefined, {year: d.getFullYear()===new Date().getFullYear() ? undefined : "numeric", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"});
@@ -1921,27 +1925,28 @@ function logDetail(before, after){
 }
 async function loadLog(reset){
   if(!window.__STANDALONE || logState.busy) return;
-  if(window.__STANDALONE && myRole()!=="admin" && !me.isOwner){ $("#logList").innerHTML = `<div class="noDev" style="padding:10px">Only admins can see the change log.</div>`; return; }
+  if(window.__STANDALONE && myRole()!=="admin" && !me.isOwner){ $("#logList").innerHTML = `<div class="noDev" style="padding:10px">Only admins can see the logs.</div>`; return; }
   logState.busy = true;
   if(reset){ logState.last = 0; $("#logList").innerHTML = `<div class="noDev" style="padding:10px">Loading…</div>`; }
   try{
-    const qs = new URLSearchParams({limit:"50"}); if(logState.q) qs.set("q", logState.q); if(logState.last) qs.set("before", String(logState.last));
+    const qs = new URLSearchParams({limit:"50"}); if(logState.q) qs.set("q", logState.q); if($("#logType").value) qs.set("type", $("#logType").value); if(logState.last) qs.set("before", String(logState.last));
     const r = await window.__api("GET", "/api/changelog?"+qs);
     $("#logKeep").textContent = `Changes are kept for ${r.keepDays >= 365 && r.keepDays % 365 === 0 ? (r.keepDays/365===1 ? "1 year" : r.keepDays/365+" years") : r.keepDays+" days"}.`;
     const html = r.entries.map(e=>{
       const detail = logDetail(e.before, e.after);
       return `<details class="logrow"><summary><span class="when">${esc(logWhen(e.at))}</span><span class="what"><span class="tag ${esc(e.action)}">${esc(LOG_TAG[e.action]||e.action)}</span>${esc(e.summary)}</span><span class="who">${esc(e.username||"")}</span></summary>${detail || `<div class="hint" style="margin-top:6px">No more detail recorded.</div>`}</details>`;
     }).join("");
-    if(reset) $("#logList").innerHTML = html || `<div class="noDev" style="padding:10px">${logState.q ? "No changes match that search." : "No changes recorded yet."}</div>`;
+    if(reset) $("#logList").innerHTML = html || `<div class="noDev" style="padding:10px">${logState.q || $("#logType").value ? "Nothing matches that search." : "Nothing recorded yet."}</div>`;
     else $("#logList").insertAdjacentHTML("beforeend", html);
     if(r.entries.length) logState.last = r.entries[r.entries.length-1].id;
     $("#logMore").classList.toggle("hidden", !r.more);
-  }catch(ex){ $("#logList").innerHTML = `<div class="noDev" style="padding:10px">${esc(ex?.message || "Couldn't load the change log.")}</div>`; }
+  }catch(ex){ $("#logList").innerHTML = `<div class="noDev" style="padding:10px">${esc(ex?.message || "Couldn't load the logs.")}</div>`; }
   finally{ logState.busy = false; }
 }
 {
   let t; $("#logSearch").addEventListener("input", e=>{ clearTimeout(t); t = setTimeout(()=>{ logState.q = e.target.value.trim(); loadLog(true); }, 250); });
   $("#logMore").onclick = ()=>loadLog(false);
+  $("#logType").onchange = ()=>loadLog(true);
 }
 async function renderAdmin(){
   const ro = !canManage();

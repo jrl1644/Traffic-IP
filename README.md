@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-40** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-41** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -54,7 +54,7 @@ Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=Experime
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is reached over **HTTPS**. |
 | `SESSION_DAYS` | `14` | How long a sign-in lasts. |
 | `PING_CONCURRENCY` | `16` | How many devices the Ping check pings at the same time. |
-| `CHANGELOG_DAYS` | `365` | How many days the change log keeps entries. |
+| `CHANGELOG_DAYS` | `365` | How many days Admin → Logs keeps entries. |
 | `TZ` | — | Time zone for log timestamps. |
 
 ---
@@ -125,9 +125,9 @@ docker compose up -d
 
 (The volume name may differ. `docker volume ls` shows it.)
 
-## Change log
+## Logs
 
-**Admin → Change log** lists every change: devices, intersections, address pools, the Device list, settings, restores and accounts (created, role changed, disabled, password reset, deleted). Each entry shows who made it, when, and what changed (for example *IP: 10.20.0.4 → 10.20.0.9*); open an entry to see the full before and after. Search by device, IP, street or username. Entries are kept for `CHANGELOG_DAYS` days (default 365). Only admins can see it. Uploaded icons aren't copied into the log.
+**Admin → Logs** lists every sign-in (successful and failed, with the address and browser, e.g. "Safari on iPhone") and sign-out, and every change: devices, intersections, address pools, the Device list, settings, restores and accounts (created, role changed, disabled, password reset, deleted). Each entry shows who made it, when, and what changed (for example *IP: 10.20.0.4 → 10.20.0.9*); open an entry to see the full before and after. Search by device, IP, street or username, or show only changes or only sign-ins. Entries are kept for `CHANGELOG_DAYS` days (default 365). Only admins can see it. Uploaded icons aren't copied into the log.
 
 ---
 
@@ -135,7 +135,7 @@ docker compose up -d
 
 - Passwords are stored as salted scrypt hashes. Sign-in tokens are random, kept in an HttpOnly cookie, and stored in the database only as hashes.
 - Wrong-password attempts are limited (10 per username and 50 per address every 10 minutes). Sign-in takes the same time whether or not a username exists.
-- Every change is recorded in the change log with who made it and when.
+- Every change and every sign-in (including failed attempts) is recorded in Admin → Logs.
 - Roles are checked by the server on every change, duplicate IPs are refused by the server, and requests that don't come from the app itself are rejected.
 - Pages are sent with a strict Content-Security-Policy and other protective headers.
 - **First start:** whoever opens the app first creates the owner account. Do that (or set `ADMIN_USERNAME`/`ADMIN_PASSWORD`) **before** making the app reachable by others.
