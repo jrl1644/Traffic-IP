@@ -735,7 +735,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-45";
+const APP_VERSION = "26.11.11-46";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1098,7 +1098,6 @@ const COLUMNS = [
   {key:"type",  label:"Type",        on:true,  cell:(d,hl)=>`<td data-l="Type"><span class="type">${hl(d.type,"type")}</span></td>`},
   {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(d.ip)}" title="Click to copy">${hl(d.ip,"ip")}</span>${(()=>{ const twin = devices.find(x=>x.ip===d.ip && x.id!==d.id);
     return twin ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="Also used by ${esc(twin.name)} at ${esc(plainStreet(twin.street1))} & ${esc(plainStreet(twin.street2))}">⚠ duplicate IP — fix needed</small>` : ""; })()}${(()=>{ const tp=typePool(d.type); return tp?.range && !inRange(d.ip,tp.range) ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="${esc(d.type)} IPs normally come from ${esc(tp.name)} (${esc(tp.range.text)})">outside ${esc(tp.name)} pool</small>` : ""; })()}</td>`},
-  {key:"pool",  label:"IP pool",     on:false, cell:d=>{ const tp=typePool(d.type); return `<td data-l="Pool">${tp?esc(tp.name):dash}</td>`; }},
   {key:"mac",   label:"MAC",         on:true,  cell:(d,hl)=>`<td class="mac" data-l="MAC">${d.mac?hl(d.mac,"mac"):dash}</td>`},
   {key:"notes", label:"Notes",       on:true,  cell:(d,hl)=>`<td class="notes" data-l="Notes">${d.notes?hl(d.notes,"notes"):""}</td>`},
   {key:"created", label:"Added",     on:false, cell:d=>`<td data-l="Added" style="white-space:nowrap">${fmtDate(d.created)||dash}</td>`},
