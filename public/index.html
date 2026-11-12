@@ -130,10 +130,9 @@
   body.mobile #list tr.mopen .mcaret{transform:rotate(90deg)}
   body.mobile #list .mname{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   body.mobile #list .mip{font-family:var(--mono);font-size:13.5px;white-space:nowrap}
-  body.mobile #list .mtype{font-size:12px;color:var(--muted);white-space:nowrap;max-width:28%;overflow:hidden;text-overflow:ellipsis}
   body.mobile #list tr:not(.mopen) td:not(.msum){display:none}
   body.mobile #list tr.mopen{padding-bottom:10px;background:rgba(127,127,127,.04)}
-  body.mobile #list tr.mopen td[data-l="Device"],body.mobile #list tr.mopen td[data-l="Type"]{display:none}
+  body.mobile #list tr.mopen td[data-l="Device"]{display:none}
   /* forms open as full-screen sheets with the buttons always reachable */
   body.mobile .scrim{padding:0;align-items:stretch}
   body.mobile .modal{max-width:none!important;border-radius:0;min-height:100%;min-height:100dvh;padding:calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left));display:flex;flex-direction:column}
@@ -694,7 +693,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-36";
+const APP_VERSION = "26.11.11-37";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1101,7 +1100,7 @@ function render(){
         ${devs.length ? `<table>
         <thead><tr>${shownCols().map(c=>`<th>${c.label}</th>`).join("")}<th></th></tr></thead>
         <tbody>${devs.map(d=>`<tr class="${mobOpen.has(d.id)?"mopen":""}">
-          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span><span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(d.ip,"ip")}</span><span class="mtype">${hl(d.type,"type")}</span></td>
+          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span><span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(d.ip,"ip")}</span></td>
           ${shownCols().map(c=>c.cell(d,hl)).join("")}
           <td class="act">${can("devices.edit")?`<button class="btn ghost" data-edit="${esc(d.id)}">Edit</button>`:""}</td>
         </tr>`).join("")}</tbody></table>`
