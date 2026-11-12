@@ -228,6 +228,19 @@
   .ghead .gact{display:flex;gap:2px}
   .hidden{display:none!important}
   .ptable td,.ptable th{padding:8px 10px}
+  .poollist{border:1px solid var(--line);border-radius:8px}
+  .poolrow{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid var(--line);min-width:0}
+  .poolrow:last-child{border-bottom:none}
+  .poolrow .pmain{flex:1;min-width:0}
+  .poolrow .ptop{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px}
+  .poolrow .prange{font-size:13.5px;overflow-wrap:anywhere}
+  .poolrow .pused{font-size:13px;color:var(--muted);margin-left:auto;white-space:nowrap}
+  .poolrow .ptypes{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .poolrow .pact{display:flex;gap:2px;flex:none}
+  body.mobile .poolrow{flex-direction:column;gap:6px}
+  body.mobile .poolrow .pused{margin-left:0}
+  body.mobile .poolrow .pact{align-self:flex-end}
+  body.mobile .poolrow .pact .btn{border:1px solid var(--line);min-width:88px}
   .ptable{border:1px solid var(--line);border-radius:8px;overflow:hidden;display:table}
   .poolbadge{background:var(--sign);color:#fff}
   .typechips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;text-transform:none;letter-spacing:0;font-weight:400}
@@ -630,7 +643,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-26";
+const APP_VERSION = "26.11.11-27";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -2224,13 +2237,17 @@ const pform = $("#poolForm");
 let editingPoolId = null;
 function renderPools(){
   const ps = [...pools.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
-  $("#poolList").innerHTML = ps.length ? `<table class="ptable"><thead><tr><th>Pool</th><th>Range</th><th>Device types</th><th>Used</th><th></th></tr></thead><tbody>${
+  // one card per pool: wraps to any width, so nothing spills out of the window
+  $("#poolList").innerHTML = ps.length ? `<div class="poollist">${
     ps.map(p=>{ const u=usedInRange(p.range), sz=rangeSize(p.range);
-      return `<tr><td><strong>${esc(p.name)}</strong></td><td class="ip">${esc(p.range?.text||"—")}</td>
-      <td>${p.types.length ? p.types.map(t=>`<span class="type">${esc(t)}</span>`).join(" ") : '<span style="color:var(--muted)">none yet</span>'}</td>
-      <td${u>=sz&&sz?' style="color:var(--danger)"':""}>${u}/${sz}</td>
-      <td class="act">${can("pools.manage")?`<button class="btn ghost" data-editpool="${esc(p.id)}">Edit</button><button class="btn ghost del" data-delpool="${esc(p.id)}">Remove</button>`:""}</td></tr>`; }).join("")
-  }</tbody></table>` : `<div class="noDev" style="padding:0">No pools yet. Create one below and pick the device types it hands out IPs to.</div>`;
+      return `<div class="poolrow">
+        <div class="pmain">
+          <div class="ptop"><strong class="pname">${esc(p.name)}</strong><span class="ip prange">${esc(p.range?.text||"—")}</span><span class="pused"${u>=sz&&sz?' style="color:var(--danger)"':""} title="Addresses in use">${u} / ${sz} used</span></div>
+          <div class="ptypes">${p.types.length ? p.types.map(t=>`<span class="type">${esc(t)}</span>`).join("") : '<span style="color:var(--muted)">No device types yet</span>'}</div>
+        </div>
+        ${can("pools.manage")?`<div class="pact"><button class="btn ghost" data-editpool="${esc(p.id)}">Edit</button><button class="btn ghost del" data-delpool="${esc(p.id)}">Remove</button></div>`:""}
+      </div>`; }).join("")
+  }</div>` : `<div class="noDev" style="padding:0">No pools yet. Create one below and pick the device types it hands out IPs to.</div>`;
 }
 /* type chips: every known type; ones already served by another pool are locked */
 let poolFormTypes = [];
