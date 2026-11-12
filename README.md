@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.11-37** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.11-38** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -172,6 +172,7 @@ To pin a specific version, change `#main` in `docker-compose.yml` to a tag or co
 ## Notes
 
 - **Custom device fields:** admins open **Add device** (or Edit) and click **⚙ Custom fields…** to add extra fields (text, number, date or dropdown, optionally required) to the Add/Edit device form. Each one can be shown as a column, printed and searched.
+- **Dark mode:** the theme button in the header switches between Auto (follows the phone or computer), Light and Dark. The choice is remembered on each device.
 - **Print:** click **Print** on an intersection bar for a clean page with your icon and the intersection as its heading. Tick which intersection details and device columns to print; your choices are remembered.
 - Street-sign fonts load from Google Fonts when the browser is online. Without internet access the app works the same, using the system font.
 - **📍 Map** and **Pick on map** open Google Maps in the browser, which needs internet access.

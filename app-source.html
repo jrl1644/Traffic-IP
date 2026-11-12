@@ -12,9 +12,12 @@
     --accent:#e0a100; --accent-ink:#1c2321; --sign:#1f6f4a; --danger:#b3261e; --chip:#eef1ec;
     --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'IBM Plex Sans',system-ui,sans-serif;
   }
+  /* theme: follows the device unless Light or Dark is picked (☾ button in the header) */
   @media (prefers-color-scheme: dark){
-    :root{ --bg:#141816; --panel:#1c211f; --ink:#e8ece9; --muted:#97a19c; --line:#2d3431; --chip:#252b28; --sign:#2f9a68; }
+    :root:not([data-theme="light"]){ --bg:#141816; --panel:#1c211f; --ink:#e8ece9; --muted:#97a19c; --line:#2d3431; --chip:#252b28; --sign:#2f9a68; color-scheme:dark; }
   }
+  :root[data-theme="dark"]{ --bg:#141816; --panel:#1c211f; --ink:#e8ece9; --muted:#97a19c; --line:#2d3431; --chip:#252b28; --sign:#2f9a68; color-scheme:dark; }
+  :root[data-theme="light"]{ color-scheme:light; }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45}
   header{background:var(--sign);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -273,6 +276,7 @@
   .typechips small{color:var(--muted)}
   header .btn{border-color:rgba(255,255,255,.4)}
 </style>
+<script>try{var t=localStorage.getItem("traffic-ip-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 </head>
 <body>
 <header>
@@ -286,6 +290,7 @@
     <button class="btn" id="devListBtn">Device list</button>
     <button class="btn" id="poolsBtn">Address pools</button>
     <button class="btn" id="addInterBtn">+ Add intersection</button>
+    <button class="btn" id="themeBtn" type="button" title="Theme"></button>
   </nav>
 </header>
 
@@ -677,7 +682,7 @@
   // header menu (phones)
   const menuBtn = document.getElementById("menuBtn");
   menuBtn.addEventListener("click", e=>{ e.stopPropagation(); const open = document.body.classList.toggle("menu-open"); menuBtn.setAttribute("aria-expanded", open); });
-  document.getElementById("hdrActions").addEventListener("click", e=>{ if(e.target.closest(".btn")) { document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
+  document.getElementById("hdrActions").addEventListener("click", e=>{ if(e.target.closest(".btn") && !e.target.closest("#themeBtn")) { document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
   document.addEventListener("click", e=>{ if(!e.target.closest("header")){ document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
   // filters (phones): Street / Device type / Search in fold away
   const fb = document.getElementById("filtersBtn");
@@ -685,7 +690,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-37";
+const APP_VERSION = "26.11.11-38";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1036,6 +1041,22 @@ const cfValue = (d, f) => { const v = d?.custom?.[f.id]; return v===undefined ||
 const cfShow = (d, f) => { const v = cfValue(d, f); return f.type==="date" && v ? (fmtDate(v+"T12:00:00") || v) : v; };
 const allCols = () => [...COLUMNS, ...customFields.map(f=>({key:"cf_"+f.id, label:f.label, on:false, custom:f,
   cell:(d,hl)=>{ const v = cfShow(d,f); return `<td data-l="${esc(f.label)}">${v ? hl(v,"custom") : dash}</td>`; }}))];
+/* ---------- light / dark theme (remembered on this device) ---------- */
+const THEME_KEY = "traffic-ip-theme", THEMES = ["auto","light","dark"];
+const THEME_LABEL = {auto:"◐ Auto", light:"☀ Light", dark:"☾ Dark"};
+let theme = (()=>{ try{ const t = localStorage.getItem(THEME_KEY); return THEMES.includes(t) ? t : "auto"; }catch{ return "auto"; } })();
+function applyTheme(){
+  if(theme==="auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", theme);
+  const b = $("#themeBtn");
+  b.textContent = document.body.classList.contains("mobile") ? `Theme: ${THEME_LABEL[theme].slice(2)}` : THEME_LABEL[theme];
+  b.title = `Theme: ${THEME_LABEL[theme].slice(2)}${theme==="auto" ? " (follows this device's setting)" : ""} — click to change`;
+}
+$("#themeBtn").onclick = ()=>{
+  theme = THEMES[(THEMES.indexOf(theme)+1) % THEMES.length];
+  try{ theme==="auto" ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, theme); }catch{}
+  applyTheme();
+};
+applyTheme();
 const mobOpen = new Set();             // phones: devices whose details are opened (all start collapsed)
 const COLS_KEY = "intersection-inventory-columns";
 let visibleCols = new Set(COLUMNS.filter(c=>c.on).map(c=>c.key));
