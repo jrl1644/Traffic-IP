@@ -56,7 +56,7 @@
   .sign.interstate{display:inline-flex;align-items:center;gap:6px;background:#1d4ea1;box-shadow:0 0 0 1px #1d4ea1;padding-left:5px}
   .sign.stateroute{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#111;border-color:#111;box-shadow:0 0 0 1px #fff;padding-left:5px}
   .shield{width:20px;height:22px;flex:none;display:block;margin:-3px 0;filter:drop-shadow(0 0 0.5px rgba(0,0,0,.4))}
-  .sign{background:var(--sign);color:#fff;font-weight:700;border-radius:5px;padding:3px 9px;font-size:14px;border:2px solid #fff;box-shadow:0 0 0 1px var(--sign)}
+  .sign{white-space:nowrap;flex:none;background:var(--sign);color:#fff;font-weight:700;border-radius:5px;padding:3px 9px;font-size:14px;border:2px solid #fff;box-shadow:0 0 0 1px var(--sign)}
   .amp{color:var(--muted);font-weight:600}
   .ghead .count{margin-left:auto;color:var(--muted);font-size:13px}
   .caret{color:var(--muted);transition:transform .15s;font-size:12px}
@@ -284,6 +284,12 @@
   .pinglegend{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:12.5px;color:var(--muted);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
   .pinglegend > span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
   .pinglegend b{color:var(--ink);font-weight:600}
+  .pinglegend .pl-btn{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font:inherit;color:inherit;background:none;border:1px solid transparent;border-radius:999px;padding:2px 8px;margin:-3px -4px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+  .pinglegend .pl-btn:hover:not(:disabled){border-color:var(--line);background:var(--chip)}
+  .pinglegend .pl-btn.on{border-color:var(--ink);background:var(--chip);color:var(--ink);text-decoration:none}
+  .pinglegend .pl-btn:disabled{cursor:default;text-decoration:none;opacity:.8}
+  .pingbanner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;margin-bottom:12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:14px}
+  .pingbanner .sp{flex:1}
   .pinglegend .pl-when{color:var(--muted)}
   body.mobile .pinglegend{flex-basis:100%;border-radius:10px}
   .logobox{display:flex;align-items:stretch;height:84px;border-radius:10px;background:var(--sign);margin-bottom:12px;overflow:hidden;color:#fff}
@@ -332,6 +338,8 @@
   .inotes{padding:8px 14px;color:var(--muted);font-size:14px;border-bottom:1px solid var(--line);background:var(--chip)}
   .noDev{padding:14px;color:var(--muted);font-size:14px}
   .ghead .gact{display:flex;gap:2px}
+  .ghead .gact .btn, .ghead .idbadge, .ghead .count{white-space:nowrap}
+  body:not(.mobile) .ghead{flex-wrap:wrap;row-gap:6px;justify-content:flex-end}
   /* desktop: Map sits on the right, just before the device count */
   body:not(.mobile) .ghead .maplink{margin-left:auto}
   body:not(.mobile) .ghead .maplink + .count{margin-left:0}
@@ -878,7 +886,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-4";
+const APP_VERSION = "26.11.12-5";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1168,7 +1176,7 @@ function startPanel(){
     </div>
   </div>`;
 }
-function isFiltering(){ return !!($("#qi").value.trim() || $("#q").value.trim() || $("#fStreet").value || $("#fType").value); }
+function isFiltering(){ return !!(pingFilter || $("#qi").value.trim() || $("#q").value.trim() || $("#fStreet").value || $("#fType").value); }
 /* returns [{inter, devices}] to show */
 /* ---------- intersection search ---------- */
 const compact = s => fixStreet(s).toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -1202,6 +1210,9 @@ function interMatches(parts, i){
   return (streetMatches(a,i.street1) && streetMatches(b,i.street2)) || (streetMatches(a,i.street2) && streetMatches(b,i.street1));
 }
 
+/* clicking "Some don't" / "None reply" in the ping legend lists only the devices that don't answer */
+let pingFilter = "";                  // "" | "some" | "none"
+const devDown = d => { const r = pingState.results[String(d.ip||"").trim()]; return !!(r && !r.ok); };
 function filtered(){
   const terms = getTerms(), st=$("#fStreet").value, ty=$("#fType").value, fld=$("#fField").value;
   const iparts = parseInterQuery($("#qi").value);
@@ -1219,6 +1230,11 @@ function filtered(){
         devs = devs.filter(d=>{ const h = norm(devText(d,fld)) + (fld==="" ? " "+iHay : ""); return terms.every(t=>h.includes(t)); });
         if(!devs.length) continue;
       }
+    }
+    if(pingFilter){
+      if(pingRank(i) !== (pingFilter==="none" ? 0 : 1)) continue;
+      devs = devs.filter(devDown);
+      if(!devs.length) continue;
     }
     out.push({inter:i, devices:devs});
   }
@@ -1322,13 +1338,20 @@ function renderPingLegend(){
   const n = [0,0,0,0,0]; inters.forEach(i=>n[pingRank(i)]++);
   const ago = pingState.lastRun ? (()=>{ const m = Math.round((Date.now() - new Date(pingState.lastRun)) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : fmtDate(pingState.lastRun); })() : "";
   el.innerHTML = `<span title="Every device at the intersection answered"><span class="pingdot ok"></span> All reply <b>${n[3]}</b></span>
-    <span title="Some devices didn't answer"><span class="pingdot some"></span> Some don't <b>${n[1]}</b></span>
-    <span title="No device answered"><span class="pingdot none"></span> None reply <b>${n[0]}</b></span>
+    <button type="button" class="pl-btn ${pingFilter==="some"?"on":""}" data-pingfilter="some" ${n[1]?"":"disabled"} title="Show the devices that don't answer at intersections where only some do"><span class="pingdot some"></span> Some don't <b>${n[1]}</b></button>
+    <button type="button" class="pl-btn ${pingFilter==="none"?"on":""}" data-pingfilter="none" ${n[0]?"":"disabled"} title="Show intersections where no device answers"><span class="pingdot none"></span> None reply <b>${n[0]}</b></button>
     ${n[2] ? `<span title="Waiting for the first check"><span class="pingdot wait"></span> Checking <b>${n[2]}</b></span>` : ""}
     <span title="No devices with an IP to check"><span class="pingdot off"></span> Nothing to check <b>${n[4]}</b></span>
     ${pingState.running ? `<span class="pl-when">checking now…</span>` : ago ? `<span class="pl-when">checked ${esc(ago)}</span>` : ""}`;
 }
 setInterval(()=>{ if(pingCfg.enabled) renderPingLegend(); }, 60000);
+$("#pingLegend").addEventListener("click", e=>{
+  const b = e.target.closest("[data-pingfilter]"); if(!b || b.disabled) return;
+  pingFilter = pingFilter===b.dataset.pingfilter ? "" : b.dataset.pingfilter;
+  searchOpen.clear();
+  if(pingFilter) inters.forEach(i=>{ if(pingRank(i)===(pingFilter==="none"?0:1)) searchOpen.add(i.key); });   // open them so the devices show
+  render(); window.scrollTo({top:0, behavior:"smooth"});
+});
 function render(){
   renderPingLegend();
   { const n = ["#fStreet","#fType","#fField"].filter(x=>$(x).value).length; const fb = $("#filtersBtn"); if(fb) fb.textContent = n ? `Filters (${n}) ▾` : "Filters ▾"; }
@@ -1356,7 +1379,11 @@ function render(){
   // list tools only matter when intersections are listed
   document.body.classList.toggle("nolist", !shown.length);
   document.body.classList.toggle("nofilter", !filt);
-  if(filt && !groups.length){ $("#list").innerHTML = `<div class="empty">Nothing matches your search.</div>`; return; }
+  if(pingFilter){
+    const nd = groups.reduce((n,g)=>n+g.devices.length, 0);
+    lead = `<div class="pingbanner"><span><span class="pingdot ${pingFilter==="none"?"none":"some"}"></span>&nbsp; <b>${nd}</b> device${nd===1?"":"s"} not answering ping at <b>${groups.length}</b> intersection${groups.length===1?"":"s"} where ${pingFilter==="none" ? "no device answers" : "only some devices answer"}</span><span class="sp"></span><button type="button" class="btn ghost" data-pingclear="1">Show everything</button></div>` + lead;
+  }
+  if(filt && !groups.length){ $("#list").innerHTML = (pingFilter ? lead : "") + `<div class="empty">Nothing matches your search.</div>`; return; }
 
   $("#list").innerHTML = lead + shown.map(({inter:i, devices:devs})=>{
     // while searching, results start collapsed; ones you open stay open until the search changes
@@ -1431,7 +1458,7 @@ $("#colMenu").addEventListener("click", e=>{
   saveCols(); renderColMenu(); render();
 });
 document.addEventListener("click", ()=>{ $("#colMenu").classList.add("hidden"); $("#colBtn").setAttribute("aria-expanded", false); });
-$("#clearBtn").onclick = ()=>{ searchOpen.clear(); ["#qi","#q","#fStreet","#fType","#fField"].forEach(s=>$(s).value=""); $("#qiInfo").textContent=""; render(); };
+$("#clearBtn").onclick = ()=>{ pingFilter = ""; searchOpen.clear(); ["#qi","#q","#fStreet","#fType","#fField"].forEach(s=>$(s).value=""); $("#qiInfo").textContent=""; render(); };
 $("#expandAll").onclick = ()=>{ inters.forEach(i=>(isFiltering() ? searchOpen : expanded).add(i.key)); render(); };
 $("#collapseAll").onclick = ()=>{ (isFiltering() ? searchOpen : expanded).clear(); render(); };
 $("#addInterBtn").onclick = ()=>openInter();
@@ -1440,6 +1467,7 @@ $("#sortSel").onchange = e=>{ sortBy = e.target.value; try{ localStorage.setItem
 
 $("#list").addEventListener("click", e=>{
   if(e.target.closest("a.maplink")) return;   // let the map link open without toggling the card
+  if(e.target.closest("[data-pingclear]")){ pingFilter = ""; searchOpen.clear(); render(); return; }
   const sa = e.target.closest("[data-showall]");
   if(sa){ showAll = sa.dataset.showall==="1"; render(); return; }
   const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-print],[data-files],[data-mtoggle],[data-toggle]");
