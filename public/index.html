@@ -55,7 +55,7 @@
   .dirsel{width:78px;flex:none;padding-left:8px;padding-right:4px}
   .sign.interstate{display:inline-flex;align-items:center;gap:6px;background:#1d4ea1;box-shadow:0 0 0 1px #1d4ea1;padding-left:5px}
   .sign.stateroute{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#111;border-color:#111;box-shadow:0 0 0 1px #fff;padding-left:5px}
-  .shield{width:20px;height:22px;flex:none;display:block;margin:-3px 0;filter:drop-shadow(0 0 0.5px rgba(0,0,0,.4))}
+  .shield{width:24px;height:24px;flex:none;display:block;margin:-3px 0;filter:drop-shadow(0 0 0.5px rgba(0,0,0,.4))}
   .sign{white-space:nowrap;flex:none;background:var(--sign);color:#fff;font-weight:700;border-radius:5px;padding:3px 9px;font-size:14px;border:2px solid #fff;box-shadow:0 0 0 1px var(--sign)}
   .amp{color:var(--muted);font-weight:600}
   .ghead .count{margin-left:auto;color:var(--muted);font-size:13px}
@@ -914,7 +914,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-14";
+const APP_VERSION = "26.11.12-15";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1011,25 +1011,29 @@ function stateRouteSvg(){
     <path d="M6.32 1.84 L5.68 2.72 L5.6 2.96 L4.64 3.92 L2.96 7.2 L3.04 8.4 L2.72 8.72 L2.08 10.0 L1.6 11.36 L1.6 11.84 L1.92 12.08 L2.32 12.08 L2.4 12.0 L2.8 12.0 L2.88 12.08 L2.88 12.96 L2.8 13.04 L2.8 13.44 L2.72 13.6 L2.96 14.0 L2.96 14.72 L2.56 15.6 L2.64 16.0 L2.96 16.32 L3.28 16.48 L3.52 16.48 L3.92 16.64 L4.4 16.64 L4.48 16.72 L5.68 16.8 L6.64 17.12 L7.2 17.76 L7.2 18.4 L6.48 19.6 L3.76 22.16 L2.96 23.2 L3.04 23.28 L21.76 23.28 L22.0 23.2 L22.16 23.04 L22.08 22.96 L22.08 22.72 L21.68 22.0 L20.96 21.28 L20.24 20.8 L19.76 20.32 L19.76 19.92 L20.08 19.6 L20.32 19.12 L20.4 18.24 L20.64 17.76 L20.64 17.6 L20.08 17.68 L19.6 18.0 L18.96 18.24 L18.56 17.84 L18.32 17.2 L18.32 16.4 L18.48 16.16 L19.12 15.6 L20.48 14.64 L21.44 13.68 L21.76 12.72 L21.84 11.36 L21.76 11.28 L21.76 10.96 L21.44 10.32 L20.56 9.2 L20.0 8.24 L19.2 5.28 L18.24 3.44 L17.12 2.24 L16.32 1.68 L15.28 1.2 L14.24 0.88 L13.52 0.8 L13.44 0.72 L11.2 0.64 L11.12 0.72 L9.76 0.8 L9.68 0.88 L8.96 0.96 L8.0 1.28 L7.76 1.28 L6.56 1.68 Z" fill="#fff"/>
   </svg>`;
 }
-/* Interstate shield, drawn after the supplied sign: dark outline, white border, red "INTERSTATE" band, blue body */
-function shieldSvg(){
-  const outer = "M10 6C22 7.5 36 6.6 46 3.2L50 2L54 3.2C64 6.6 78 7.5 90 6C95.2 16 99 30 99 44C99 74 76 94.5 50 104.5C24 94.5 1 74 1 44C1 30 4.8 16 10 6Z";
-  const inner = "M12.4 9C24 10.4 37 9.6 46.6 6.4L50 5.3L53.4 6.4C63 9.6 76 10.4 87.6 9C92.2 18 96 31 96 44C96 72 74.5 91 50 101C25.5 91 4 72 4 44C4 31 7.8 18 12.4 9Z";
-  return `<svg class="shield" viewBox="0 0 100 106" aria-hidden="true">
-    <path d="${outer}" fill="#fff" stroke="#1a1a1a" stroke-width="1" stroke-linejoin="round"/>
+/* Interstate shield, drawn after the standard sign (MUTCD M1-1): white border, red "INTERSTATE" band,
+   blue body with the route number. Drawn as SVG, so it's sharp at any size. */
+function shieldSvg(num){
+  const n = String(num || "").toUpperCase().slice(0, 4);
+  const outer = "M36 3C100 18 180 18 228 7L250 1L272 7C320 18 400 18 464 3C488 40 499 100 499 170C499 330 390 440 250 498C110 440 1 330 1 170C1 100 12 40 36 3Z";
+  const inner = "M43 14C105 28 183 28 230 17L250 11L270 17C317 28 395 28 457 14C477 48 488 105 488 172C488 323 384 428 250 486C116 428 12 323 12 172C12 105 23 48 43 14Z";
+  const digits = n.length, fs = digits >= 3 ? 205 : 235, tl = digits >= 3 ? 360 : digits === 2 ? 250 : 0;
+  return `<svg class="shield" viewBox="0 0 500 500" aria-hidden="true">
+    <path d="${outer}" fill="#fff" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round"/>
     <clipPath id="shieldInner"><path d="${inner}"/></clipPath>
     <g clip-path="url(#shieldInner)">
-      <rect x="0" y="0" width="100" height="106" fill="#003d82"/>
-      <rect x="0" y="0" width="100" height="26.5" fill="#b0202e"/>
-      <rect x="0" y="26.5" width="100" height="2.2" fill="#fff"/>
-      <text x="50" y="22" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="11.5" fill="#fff" textLength="70" lengthAdjust="spacingAndGlyphs">INTERSTATE</text>
+      <rect x="0" y="0" width="500" height="500" fill="#003f87"/>
+      <rect x="0" y="0" width="500" height="104" fill="#af1e2d"/>
+      <rect x="0" y="104" width="500" height="11" fill="#fff"/>
+      <text x="250" y="88" text-anchor="middle" font-family="'Roboto Condensed','Arial Narrow',Arial,Helvetica,sans-serif" font-weight="700" font-size="64" fill="#fff" textLength="318" lengthAdjust="spacingAndGlyphs">INTERSTATE</text>
+      ${n ? `<text x="250" y="${digits >= 3 ? 345 : 356}" text-anchor="middle" font-family="'Roboto Condensed','Arial Narrow',Arial,Helvetica,sans-serif" font-weight="700" font-size="${fs}" fill="#fff"${tl ? ` textLength="${tl}" lengthAdjust="spacingAndGlyphs"` : ""}>${esc(n)}</text>` : ""}
     </g>
   </svg>`;
 }
 /* a street "sign" chip; interstates get the shield */
 function streetChip(name, hl){
   const kind = roadKind(name);
-  if(kind==="interstate") return `<span class="sign interstate" title="Interstate ${esc(interstateNum(name))}">${shieldSvg()}${hl(plainStreet(name),"street")}</span>`;
+  if(kind==="interstate") return `<span class="sign interstate" title="Interstate ${esc(interstateNum(name))}">${shieldSvg(interstateNum(name))}${hl(plainStreet(name),"street")}</span>`;
   if(kind==="state") return `<span class="sign stateroute" title="Washington State Route ${esc(stateRouteNum(name))}">${stateRouteSvg()}${hl(plainStreet(name),"street")}</span>`;
   return `<span class="sign">${hl(plainStreet(name),"street")}</span>`;
 }
