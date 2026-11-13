@@ -401,8 +401,8 @@
   <div id="status" class="notice">Loading inventory…</div>
 
   <div class="intersearch">
-    <label class="f"><span>Search for intersection <span class="hint" style="text-transform:none;letter-spacing:0">· either order · any spelling · all directions (e.g. “i5 at sr14”, “SR-14 &amp; I-5”)</span></span>
-      <input id="qi" type="search" placeholder="Street at cross street — e.g. I-5 at SR-14" autocomplete="off">
+    <label class="f"><span>Search <span class="hint" style="text-transform:none;letter-spacing:0">· streets in either order (“i5 at sr14”), IP address, device, type, MAC, Intersection ID, ATMS, notes</span></span>
+      <input id="qi" type="search" placeholder="e.g. I-5 at SR-14, 10.20.0.15, camera, INT-14…" autocomplete="off">
     </label>
     <div class="hint" id="qiInfo"></div>
   </div>
@@ -899,7 +899,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-8";
+const APP_VERSION = "26.11.12-9";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1170,7 +1170,9 @@ function devText(d,f){
     default: return [d.ip,d.name,d.type,d.mac,d.notes,...customFields.map(f=>cfShow(d,f))].join(" ");
   }
 }
-function getTerms(){ return norm($("#q").value).split(/\s+/).filter(Boolean); }
+/* words from the search box, for "search everything" matching and highlighting ("at", "&"… are left out) */
+const SEARCH_GLUE = new Set(["at","and","x","with","&","@","/","+",","]);
+function getTerms(){ return norm($("#q").value || $("#qi").value).split(/\s+/).filter(t=>t && !SEARCH_GLUE.has(t)); }
 /* Until you search, the list stays empty: a short start panel instead of every intersection.
    Intersections you add or change in this session are listed there so you can see your work. */
 let showAll = false;
@@ -1180,8 +1182,8 @@ function startPanel(){
   const nI = inters.size, nD = devices.length;
   return `<div class="startpanel">
     <div class="sp-icon" aria-hidden="true">🔍</div>
-    <h2>Search to find an intersection</h2>
-    <p>Type a street or both streets in <b>Search for intersection</b> above — either order, any spelling (e.g. <i>I-5 at SR-14</i>, <i>sr14 &amp; i5</i>), or just one street to see every intersection on it.</p>
+    <h2>Search to find an intersection or device</h2>
+    <p>Type in the <b>Search</b> box above: one or both streets in either order (e.g. <i>I-5 at SR-14</i>), or an IP address, device, type, MAC, Intersection ID, ATMS Station ID or notes (e.g. <i>10.20.0.15</i>, <i>camera</i>, <i>INT-14</i>).</p>
     <div class="sp-stats"><span><b>${nI.toLocaleString()}</b> intersection${nI===1?"":"s"}</span><span><b>${nD.toLocaleString()}</b> device${nD===1?"":"s"}</span>${fileDocs.length ? `<span><b>${fileDocs.length.toLocaleString()}</b> photo${fileDocs.length===1?"":"s"} &amp; file${fileDocs.length===1?"":"s"}</span>` : ""}</div>
     <div class="sp-acts">
       <button type="button" class="btn" data-showall="1">Show all intersections</button>
@@ -1228,14 +1230,26 @@ let pingFilter = "";                  // "" | "some" | "none"
 const devDown = d => { const r = pingState.results[String(d.ip||"").trim()]; return !!(r && !r.ok); };
 function filtered(){
   const terms = getTerms(), st=$("#fStreet").value, ty=$("#fType").value, fld=$("#fField").value;
-  const iparts = parseInterQuery($("#qi").value);
+  const qiText = tidy($("#qi").value), iparts = parseInterQuery(qiText), gterms = qiText ? getTerms() : [];
   const out = [];
   for(const i of orderedInters()){
     if(st && norm(i.street1)!==st && norm(i.street2)!==st) continue;
-    if(!interMatches(iparts, i)) continue;
     let devs = ty ? i.devices.filter(d=>norm(d.type)===ty) : i.devices;
     if(ty && !devs.length) continue;
-    if(terms.length){
+    if(qiText){
+      // one box searches everything: the streets (either order), or the intersection's ID / ATMS / notes,
+      // or its devices (IP, device, type, MAC, notes, custom fields) — then only the matching devices show
+      const streetHit = iparts.length && interMatches(iparts, i);
+      const iHay = norm(interText(i)) + " " + compact(i.street1) + " " + compact(i.street2);   // "i5" finds "I-5"
+      const interHit = gterms.length && gterms.every(t=>iHay.includes(t));
+      if(!streetHit && !interHit){
+        const exactIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(qiText) ? qiText : "";     // a whole IP finds that device, not 10.20.0.150 for 10.20.0.1
+        devs = exactIp ? devs.filter(d=>String(d.ip||"").trim()===exactIp)
+                       : devs.filter(d=>{ const h = norm(devText(d,"")) + " " + iHay; return gterms.length && gterms.every(t=>h.includes(t)); });
+        if(!devs.length) continue;
+      }
+    }
+    if(terms.length && $("#q").value.trim()){
       const iHay = norm(interText(i));
       const interMatches = (fld===""||fld==="street") && terms.every(t=>iHay.includes(t));
       if(!interMatches){
@@ -1464,7 +1478,9 @@ const searchOpen = new Set();      // results opened during the current search
 $("#qi").addEventListener("input", ()=>{
   const raw = tidy($("#qi").value);
   const parts = raw ? splitInterQuery(raw).map(x=>isHighway(x) ? fixStreet(x) : x) : [];
-  $("#qiInfo").textContent = parts.length===2 ? `Looking for ${plainStreet(parts[0])} & ${plainStreet(parts[1])} in either order, including every direction (NB/SB/EB/WB, N/S/E/W).`
+  const streetHit = raw && [...inters.values()].some(i=>interMatches(parseInterQuery(raw), i));
+  $("#qiInfo").textContent = raw && !streetHit ? `Searching IP addresses, devices, types, MACs, IDs, ATMS and notes for “${raw}”.`
+    : parts.length===2 ? `Looking for ${plainStreet(parts[0])} & ${plainStreet(parts[1])} in either order, including every direction (NB/SB/EB/WB, N/S/E/W).`
     : parts.length===1 ? `Showing every intersection on ${plainStreet(parts[0])}. Add “at” and a cross street to narrow it down.` : "";
 });
 $("#qi").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#q").focus(); } });
