@@ -77,6 +77,7 @@
   body.nolist .seg{display:none}
   body.nofilter #clearBtn,
   body.nolist .sortwrap, body.nolist .colwrap{display:none}
+  body.nolist:not(.pingfiltering) #pingLegend{display:none!important}      /* not on the start screen */
   .controls[hidden],#filtersBtn[hidden]{display:none!important}
   .startpanel{text-align:center;padding:38px 22px 30px;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:14px}
   .startpanel .sp-icon{font-size:30px;line-height:1;margin-bottom:10px;opacity:.85}
@@ -905,7 +906,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-10";
+const APP_VERSION = "26.11.12-11";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1423,6 +1424,7 @@ function render(){
   // list tools only matter when intersections are listed
   document.body.classList.toggle("nolist", !shown.length);
   document.body.classList.toggle("nofilter", !filt);
+  document.body.classList.toggle("pingfiltering", !!pingFilter);
   if(pingFilter){
     const nd = groups.reduce((n,g)=>n+g.devices.length, 0);
     lead = `<div class="pingbanner"><span><span class="pingdot ${pingFilter==="none"?"none":"some"}"></span>&nbsp; <b>${nd}</b> device${nd===1?"":"s"} not answering ping at <b>${groups.length}</b> intersection${groups.length===1?"":"s"} where ${pingFilter==="none" ? "no device answers" : "only some devices answer"}</span><span class="sp"></span><button type="button" class="btn ghost" data-pingclear="1">Show everything</button></div>` + lead;
