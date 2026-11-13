@@ -201,6 +201,21 @@
   .brandslot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   header.haslogo{padding-left:calc(var(--logo-w,84px) + 18px)}
   .settinghead{margin:0 0 6px;font-size:15px}
+  .subtabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+  .subtab{font:inherit;font-size:13.5px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+  .subtab.active{background:var(--sign);border-color:var(--sign);color:#fff}
+  .impstep{font-weight:600;margin:16px 0 6px;font-size:14px}
+  .impmap{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 12px}
+  .impmap .f{margin:0}
+  .impprob{max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .impprob div{padding:4px 10px;border-bottom:1px solid var(--line)}
+  .impprob div:last-child{border-bottom:none}
+  .impprob span{font-family:var(--mono);color:var(--muted);margin-right:6px}
+  .impprob .warn{color:var(--muted)}
+  .imptable{width:100%;border-collapse:collapse;font-size:13px}
+  .imptable th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--line)}
+  .imptable td{padding:4px 8px;border-bottom:1px solid var(--line)}
+  .imptable td.ip{font-family:var(--mono)}
   .loglist{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
   .logrow{border-bottom:1px solid var(--line);padding:8px 10px}
   .logrow:last-child{border-bottom:none}
@@ -599,6 +614,13 @@
     </section>
 
     <section class="tabpane hidden" data-pane="settings">
+      <div class="subtabs" role="tablist">
+        <button type="button" class="subtab active" data-sub="icon">Custom icon</button>
+        <button type="button" class="subtab saOnly" data-sub="ping">Ping check</button>
+        <button type="button" class="subtab" data-sub="import">Import</button>
+        <button type="button" class="subtab" data-sub="backup">Backup &amp; Restore</button>
+      </div>
+      <div class="subpane" data-subpane="icon">
       <h3 class="settinghead">Custom icon</h3>
       <p class="hint" style="margin:0 0 10px;font-size:14px">Your icon fills the top-left corner of the header for everyone. In the self-hosted version it's also shown on the sign-in screen and used as the app's icon for browser tabs, bookmarks and "Add to Home Screen". It's resized and cropped automatically: square to wide images fill the space; taller or extra-wide ones are trimmed from the center. PNG, JPG, SVG or WebP.</p>
       <div class="logobox" id="logoPreview"><span class="none">No icon yet</span></div>
@@ -606,8 +628,10 @@
         <label class="btn" id="logoPick" style="cursor:pointer">Upload icon…<input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></label>
         <button type="button" class="btn ghost del" id="logoRemove">Remove icon</button>
       </div>
+      </div>
 
-      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Ping check</h3>
+      <div class="subpane hidden" data-subpane="ping">
+      <h3 class="settinghead">Ping check</h3>
       <p class="hint" style="margin:0 0 10px;font-size:14px">Checks whether each device answers a ping and shows the result as a circle on every intersection bar:
         <span class="pingdot ok" aria-hidden="true"></span> all devices reply ·
         <span class="pingdot some" aria-hidden="true"></span> some don't ·
@@ -625,8 +649,39 @@
         </div>
         <div class="hint" id="pingStatus" style="margin-top:8px;min-height:18px"></div>
       </div>
+      </div>
 
-      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Backup &amp; Restore</h3>
+      <div class="subpane hidden" data-subpane="import">
+      <h3 class="settinghead">Import from Excel</h3>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Add devices and intersections from an Excel workbook (.xlsx) or a CSV file — one device per row, with columns for the two streets (or one “Main St &amp; 1st Ave” column), device, type and IP. Other columns are optional. The file is read in your browser; nothing is changed until you press Import.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label class="btn primary" style="cursor:pointer">Choose Excel or CSV file…<input type="file" id="impFile" accept=".xlsx,.xlsm,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden></label>
+        <button type="button" class="btn ghost" id="impTemplate">Download a template</button>
+      </div>
+      <div class="hint" id="impStatus" style="margin-top:8px;min-height:18px"></div>
+      <div id="impStep2" class="hidden">
+        <label class="f hidden" id="impSheetWrap" style="max-width:320px">Sheet<select id="impSheet"></select></label>
+        <div class="impstep">1. Match the columns</div>
+        <p class="hint" style="margin:0 0 8px;font-size:13px">Guessed from the headings in the first row. Change any that are wrong.</p>
+        <div class="impmap" id="impMap"></div>
+        <label class="f" style="max-width:420px;margin-top:6px">If a device's IP is already in the inventory
+          <select id="impDup"><option value="skip">Skip that row</option><option value="update">Update the existing device</option></select></label>
+      </div>
+      <div id="impStep3" class="hidden">
+        <div class="impstep">2. Check and import</div>
+        <div id="impSummary" style="font-size:14px"></div>
+        <div id="impProblems"></div>
+        <div id="impPreview" style="margin-top:8px"></div>
+        <p class="hint" style="margin:8px 0 0;font-size:13px">Rows without an IP get the next free IP from their type's address pool. Intersection ID, ATMS and GPS fill in blanks on existing intersections but never replace what's there. New device names are added to the Device list.</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+          <button type="button" class="btn" id="impCancel">Cancel</button>
+          <button type="button" class="btn primary" id="impGo">Import</button>
+        </div>
+      </div>
+      </div>
+
+      <div class="subpane hidden" data-subpane="backup">
+      <h3 class="settinghead">Backup &amp; Restore</h3>
       <p class="hint" style="margin:0 0 10px;font-size:14px">A backup holds all the app's data: intersections, devices, address pools, the Device list, roles &amp; privileges, custom device fields and the custom icon<span class="saOnly"> (user accounts and passwords aren't included and aren't changed by a restore)</span>. Backups work in both the claude.ai and self-hosted versions.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button type="button" class="btn primary" id="backupBtn">Download backup</button>
@@ -634,6 +689,7 @@
         <button type="button" class="btn ghost del" id="resetDbBtn">Reset database…</button>
       </div>
       <div class="hint" id="bkStatus" style="margin-top:8px;min-height:18px"></div>
+      </div>
     </section>
 
     <section class="tabpane hidden" data-pane="log">
@@ -746,7 +802,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.11-50";
+const APP_VERSION = "26.11.12-1";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1791,6 +1847,7 @@ function openConfirm(title, html, btnText, fn, opts){
   $("#verifyLabel").innerHTML = verifyWord ? `Type <strong style="font-family:var(--mono)">${esc(verifyWord)}</strong> to confirm` : "";
   $("#verifyInput").value = "";
   $("#confirmDel").disabled = !!verifyWord;
+  $("#confirmDel").classList.toggle("danger", !opts?.safe); $("#confirmDel").classList.toggle("primary", !!opts?.safe);
   $("#delScrim").classList.add("open");
   if(verifyWord) setTimeout(()=>$("#verifyInput").focus(),30);
 }
@@ -2315,6 +2372,341 @@ $("#cfList").addEventListener("click", e=>{
     "Remove field", async ()=>{ await saveCustomFields(customFields.filter(x=>x.id!==fld.id), `${fld.label} removed`); if(cfEditing===fld.id) resetCfForm(); });
 });
 
+/* ---------- Settings sub-tabs ---------- */
+function setSubTab(t){
+  document.querySelectorAll("#adminScrim .subtab").forEach(b=>b.classList.toggle("active", b.dataset.sub===t));
+  document.querySelectorAll("#adminScrim .subpane").forEach(p=>p.classList.toggle("hidden", p.dataset.subpane!==t));
+}
+document.querySelectorAll("#adminScrim .subtab").forEach(b=>b.onclick = ()=>setSubTab(b.dataset.sub));
+
+/* ---------- Import from Excel (.xlsx) or CSV ----------
+   Reads the file in the browser (no upload), lets you match its columns to the app's fields,
+   previews what will happen, then adds the devices and intersections. */
+/* .xlsx is a zip of XML files: read the zip directory, inflate the parts we need, parse the XML */
+async function unzipXlsx(buf){
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  let eocd = -1;
+  for(let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  if(eocd < 0) throw new Error("This isn't a valid .xlsx file.");
+  const count = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true);
+  const files = {}, dec = new TextDecoder();
+  for(let n = 0; n < count; n++){
+    if(dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const name = dec.decode(u8.subarray(p + 46, p + 46 + nlen));
+    files[name] = {method, csize, off};
+    p += 46 + nlen + xlen + clen;
+  }
+  const read = async name => {
+    const f = files[name]; if(!f) return null;
+    const start = f.off + 30 + dv.getUint16(f.off + 26, true) + dv.getUint16(f.off + 28, true);
+    const data = u8.subarray(start, start + f.csize);
+    if(f.method === 0) return dec.decode(data);
+    if(f.method !== 8) throw new Error("This .xlsx uses a compression the browser can't read.");
+    if(typeof DecompressionStream === "undefined") throw new Error("This browser can't read .xlsx files — update it, or save the sheet as CSV.");
+    const out = await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer();
+    return dec.decode(out);
+  };
+  return {files, read};
+}
+const xmlDoc = t => new DOMParser().parseFromString(t, "application/xml");
+const byTag = (el, tag) => [...el.getElementsByTagName("*")].filter(x => x.localName === tag);
+async function readXlsx(buf){
+  const z = await unzipXlsx(buf);
+  const wb = xmlDoc(await z.read("xl/workbook.xml") || "<x/>");
+  const rels = xmlDoc(await z.read("xl/_rels/workbook.xml.rels") || "<x/>");
+  const relMap = Object.fromEntries(byTag(rels, "Relationship").map(r => [r.getAttribute("Id"), r.getAttribute("Target")]));
+  const ssXml = await z.read("xl/sharedStrings.xml");
+  const strings = ssXml ? byTag(xmlDoc(ssXml), "si").map(si => byTag(si, "t").filter(t => !byTag(si, "rPh").some(ph => ph.contains(t))).map(t => t.textContent).join("")) : [];
+  // which cell styles are dates (so 46000 becomes 2025-12-08)
+  const stXml = await z.read("xl/styles.xml");
+  const dateStyles = new Set();
+  if(stXml){
+    const st = xmlDoc(stXml);
+    const custom = Object.fromEntries(byTag(st, "numFmt").map(f => [f.getAttribute("numFmtId"), f.getAttribute("formatCode") || ""]));
+    const xfsParent = byTag(st, "cellXfs")[0];
+    const xfs = xfsParent ? [...xfsParent.children].filter(x => x.localName === "xf") : [];
+    xfs.forEach((xf, i) => {
+      const id = +xf.getAttribute("numFmtId");
+      const code = custom[id] || "";
+      if((id >= 14 && id <= 22) || (id >= 45 && id <= 47) || (code && /[dmy]/i.test(code.replace(/"[^"]*"|\[[^\]]*\]/g, "")) && !/^[#0.,%]+$/.test(code))) dateStyles.add(i);
+    });
+  }
+  const sheets = [];
+  for(const sh of byTag(wb, "sheet")){
+    const rid = sh.getAttribute("r:id") || [...sh.attributes].find(a => a.localName === "id")?.value;
+    let target = relMap[rid] || ""; if(!target) continue;
+    target = target.replace(/^\//, "").replace(/^(?!xl\/)/, "xl/");
+    const sx = await z.read(target); if(!sx) continue;
+    const rows = [];
+    for(const row of byTag(xmlDoc(sx), "row")){
+      const r = (+row.getAttribute("r") || rows.length + 1) - 1, vals = [];
+      let col = 0;
+      for(const c of [...row.children].filter(x => x.localName === "c")){
+        const ref = c.getAttribute("r");
+        if(ref){ const m = /^([A-Z]+)/.exec(ref); col = [...m[1]].reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1; }
+        const t = c.getAttribute("t"), v = byTag(c, "v")[0]?.textContent ?? "";
+        let val;
+        if(t === "s") val = strings[+v] ?? "";
+        else if(t === "inlineStr") val = byTag(c, "t").map(x => x.textContent).join("");
+        else if(t === "b") val = v === "1" ? "TRUE" : "FALSE";
+        else if(t === "e") val = "";
+        else if(t === "str") val = v;
+        else if(v !== "" && dateStyles.has(+c.getAttribute("s"))){ const d = new Date(Math.round((+v - 25569) * 864e5)); val = isNaN(d) ? v : d.toISOString().slice(0, 10); }
+        else val = v === "" ? "" : String(+v === +v ? +v : v);
+        vals[col] = val; col++;
+      }
+      rows[r] = vals;
+    }
+    sheets.push({name: sh.getAttribute("name") || `Sheet ${sheets.length + 1}`, rows: [...rows].map(r => r || [])});
+  }
+  if(!sheets.length) throw new Error("No sheets found in this file.");
+  return sheets;
+}
+function readCsv(text){
+  text = text.replace(/^﻿/, "");
+  const delim = (() => { const first = text.split(/\r?\n/, 1)[0] || ""; const c = (first.match(/,/g)||[]).length, s = (first.match(/;/g)||[]).length, tb = (first.match(/\t/g)||[]).length; return tb > c && tb > s ? "\t" : s > c ? ";" : ","; })();
+  const rows = []; let row = [], cell = "", q = false;
+  for(let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if(q){ if(ch === '"'){ if(text[i+1] === '"'){ cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if(ch === '"' && cell === "") q = true;
+    else if(ch === delim){ row.push(cell); cell = ""; }
+    else if(ch === "\n" || ch === "\r"){ if(ch === "\r" && text[i+1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += ch;
+  }
+  if(cell !== "" || row.length){ row.push(cell); rows.push(row); }
+  return [{name: "CSV", rows}];
+}
+
+/* the fields a spreadsheet column can fill */
+const IMP_FIELDS = () => [
+  {key:"inter",    label:"Intersection (both streets in one cell)", hint:"e.g. Main St & 1st Ave", re:/^(intersection( name)?|location|intersection location)$/},
+  {key:"street1",  label:"Street 1", re:/^(street ?1|street|main street|primary street|on street|street name|road|main)$/},
+  {key:"street2",  label:"Street 2", re:/^(street ?2|cross ?street|cross|at street|at|secondary street|intersecting street|cross road)$/},
+  {key:"name",     label:"Device", re:/^(device|device name|name|equipment|model|device model)$/},
+  {key:"type",     label:"Device type", re:/^(type|device type|category|equipment type|device category)$/},
+  {key:"ip",       label:"IP address", re:/^(ip|ip ?address|ipv4|ip addr|address ip)$/},
+  {key:"mac",      label:"MAC", re:/^(mac|mac ?address)$/},
+  {key:"notes",    label:"Device notes", re:/^(notes?|device notes?|comments?|description|remarks)$/},
+  {key:"number",   label:"Intersection ID", re:/^(intersection ?id|int ?id|intersection ?(no|number|#)|signal ?id|id)$/},
+  {key:"atmsId",   label:"ATMS Station ID", re:/^(atms ?(station)? ?id|station ?id|atms station|atms)$/},
+  {key:"atmsPort", label:"ATMS Port", re:/^(atms ?port|port)$/},
+  {key:"gps",      label:"GPS (lat, long in one cell)", re:/^(gps|coordinates|coords|gps coordinates|lat ?\/? ?long?|lat, ?lon(g)?)$/},
+  {key:"lat",      label:"Latitude", re:/^(lat|latitude)$/},
+  {key:"lon",      label:"Longitude", re:/^(lon|lng|long|longitude)$/},
+  ...customFields.map(f=>({key:"cf_"+f.id, label:f.label+" (custom)", custom:f, re:null})),
+];
+let imp = null;   // {sheets, sheet, header, rows, map, plan}
+const impNorm = s => String(s ?? "").toLowerCase().replace(/[_\-.:#]+/g, " ").replace(/\s+/g, " ").trim();
+function impGuessMap(header){
+  const map = {}, used = new Set();
+  for(const f of IMP_FIELDS()){
+    const idx = header.findIndex((h, i) => !used.has(i) && h && (f.custom ? impNorm(h) === impNorm(f.custom.label) : f.re.test(impNorm(h))));
+    if(idx >= 0){ map[f.key] = idx; used.add(idx); }
+  }
+  if(map.inter !== undefined && map.street1 !== undefined && map.street2 !== undefined) delete map.inter;
+  return map;
+}
+function splitInter(s){
+  const t = tidy(s); if(!t) return null;
+  const m = t.split(/\s*(?:&|\band\b|\bat\b|@|\/|\s+x\s+|\+)\s*/i).filter(Boolean);
+  return m.length === 2 ? m : null;
+}
+function impOpen(){
+  imp = null;
+  $("#impStep2").classList.add("hidden"); $("#impStep3").classList.add("hidden");
+  $("#impStatus").textContent = ""; $("#impStatus").style.color = "";
+}
+async function impLoadFile(file){
+  const st = $("#impStatus"); st.style.color = ""; st.textContent = `Reading ${file.name}…`;
+  try{
+    if(file.size > 25 * 1024 * 1024) throw new Error("That file is over 25 MB.");
+    const lower = file.name.toLowerCase();
+    let sheets;
+    if(lower.endsWith(".xlsx") || lower.endsWith(".xlsm")) sheets = await readXlsx(await file.arrayBuffer());
+    else if(lower.endsWith(".csv") || lower.endsWith(".txt") || lower.endsWith(".tsv")) sheets = readCsv(await file.text());
+    else if(lower.endsWith(".xls")) throw new Error("Old-style .xls files can't be read. In Excel use File → Save As → Excel Workbook (.xlsx), then import that.");
+    else throw new Error("Choose an Excel (.xlsx) or CSV file.");
+    sheets = sheets.map(s => ({...s, rows: s.rows.map(r => [...r].map(c => c ?? ""))})).filter(s => s.rows.some(r => r.some(c => String(c).trim())));
+    if(!sheets.length) throw new Error("The file has no data.");
+    imp = {file: file.name, sheets, sheet: 0};
+    $("#impSheet").innerHTML = sheets.map((s, i) => `<option value="${i}">${esc(s.name)} (${s.rows.filter(r => r.some(c => String(c).trim())).length} rows)</option>`).join("");
+    $("#impSheetWrap").classList.toggle("hidden", sheets.length < 2);
+    impUseSheet(0);
+    st.textContent = `${file.name} — match the columns below, then check the preview.`;
+  }catch(ex){ imp = null; st.style.color = "var(--danger)"; st.textContent = ex.message || "Couldn't read that file."; $("#impStep2").classList.add("hidden"); $("#impStep3").classList.add("hidden"); }
+}
+function impUseSheet(i){
+  imp.sheet = i;
+  const rows = imp.sheets[i].rows;
+  const hi = rows.findIndex(r => r.filter(c => String(c).trim()).length >= 2);
+  const h = Math.max(0, hi);
+  imp.header = (rows[h] || []).map(c => tidy(String(c)));
+  imp.headerRow = h;
+  imp.rows = rows.slice(h + 1).map((r, n) => ({n: h + n + 2, cells: r})).filter(r => r.cells.some(c => String(c).trim()));
+  imp.map = impGuessMap(imp.header);
+  impRenderMap(); impPlan();
+  $("#impStep2").classList.remove("hidden");
+}
+function impRenderMap(){
+  const cols = imp.header.map((h, i) => `<option value="${i}">${esc(h || `Column ${i + 1}`)}</option>`).join("");
+  $("#impMap").innerHTML = IMP_FIELDS().map(f => `<label class="f">${esc(f.label)}${f.hint ? ` <span class="hint">${esc(f.hint)}</span>` : ""}
+      <select data-imp="${esc(f.key)}"><option value="">— not in the file —</option>${cols}</select></label>`).join("");
+  $("#impMap").querySelectorAll("select").forEach(s => { const v = imp.map[s.dataset.imp]; s.value = v === undefined ? "" : String(v); });
+}
+/* work out exactly what the import will do, without changing anything */
+function impPlan(){
+  const m = imp.map, get = (r, k) => m[k] === undefined ? "" : tidy(String(r.cells[m[k]] ?? ""));
+  const dupMode = $("#impDup").value;
+  const ipOwner = new Map(devices.map(d => [String(d.ip).trim(), d]));
+  const seenIp = new Map(), skipNums = new Set();
+  const newInters = new Map(), interUpdates = new Map();
+  const knownTypes = [...[...pools.values()].flatMap(p => p.types), ...devices.map(x => x.type), ...DEFAULT_TYPES];
+  const adds = [], updates = [], problems = [];
+  let interOnly = 0;
+  const hasDeviceCols = m.name !== undefined || m.ip !== undefined;
+  for(const r of imp.rows){
+    let s1 = get(r, "street1"), s2 = get(r, "street2");
+    if((!s1 || !s2) && m.inter !== undefined){ const sp = splitInter(get(r, "inter")); if(sp){ s1 = s1 || sp[0]; s2 = s2 || sp[1]; } }
+    s1 = fixStreet(s1); s2 = fixStreet(s2);
+    if(!s1 || !s2){ problems.push({n: r.n, why: m.inter !== undefined && get(r, "inter") ? `Couldn't split “${get(r, "inter")}” into two streets` : "Missing a street"}); continue; }
+    if(norm(s1) === norm(s2)){ problems.push({n: r.n, why: "Both streets are the same"}); continue; }
+    const key = interKey(s1, s2);
+    // intersection details (only fill in what's blank; never overwrite)
+    const det = {};
+    const num = get(r, "number").toUpperCase(); if(num) det.number = num;
+    const aid = get(r, "atmsId"); if(aid) det.atmsId = aid;
+    const ap = get(r, "atmsPort"); if(ap){ if(/^\d{1,5}$/.test(ap) && +ap >= 1 && +ap <= 65535) det.atmsPort = String(+ap); else problems.push({n: r.n, why: `ATMS Port “${ap}” isn't 1–65535 (left blank)`, warn: true}); }
+    let gps = null;
+    if(get(r, "gps")) gps = parseGps(get(r, "gps"));
+    else if(get(r, "lat") && get(r, "lon")) gps = parseGps(`${get(r, "lat")}, ${get(r, "lon")}`);
+    if(gps?.error){ problems.push({n: r.n, why: `GPS: ${gps.error} (left blank)`, warn: true}); gps = null; }
+    if(gps) det.gps = gps;
+    const existing = inters.get(key);
+    // the intersection is only added (or filled in) when its row is actually used
+    const useInter = () => {
+      if(!existing && !newInters.has(key)) newInters.set(key, {street1: s1, street2: s2, ...det});
+      else if(!existing) { const ni = newInters.get(key); for(const [k, v] of Object.entries(det)) if(!ni[k]) ni[k] = v; }
+      else if(Object.keys(det).length){
+        const cur = interUpdates.get(key) || {};
+        for(const [k, v] of Object.entries(det)) if(!(k === "gps" ? existing.gps : existing[k]) && !cur[k]) cur[k] = v;
+        if(Object.keys(cur).length) interUpdates.set(key, cur);
+      }
+      return existing || newInters.get(key);
+    };
+    const place = existing || newInters.get(key) || {street1: s1, street2: s2};
+    // the device on this row
+    const name = get(r, "name"); let ip = get(r, "ip");
+    if(!hasDeviceCols || (!name && !ip)){ useInter(); interOnly++; continue; }
+    let type = get(r, "type") || "Other";
+    type = knownTypes.find(t => norm(t) === norm(type)) || type;
+    if(!name){ problems.push({n: r.n, why: "No device name"}); continue; }
+    if(!ip){
+      const range = typePool(type)?.range;
+      const nip = range ? nextFreeIp(range, null, skipNums) : null;
+      if(!nip){ problems.push({n: r.n, why: range ? `No IP, and the ${typePool(type).name} pool is full` : `No IP (and no address pool for ${type})`}); continue; }
+      ip = nip; r.autoIp = true;
+    }
+    if(!validIp(ip)){ problems.push({n: r.n, why: `“${ip}” isn't a valid IP address`}); continue; }
+    if(seenIp.has(ip)){ problems.push({n: r.n, why: `IP ${ip} is also on row ${seenIp.get(ip)} of the file`}); continue; }
+    let mac = get(r, "mac");
+    if(mac && !validMac(mac)){ problems.push({n: r.n, why: `MAC “${mac}” isn't valid (left blank)`, warn: true}); mac = ""; }
+    const dev = {name, type, ip, mac: mac.toUpperCase(), notes: get(r, "notes"), street1: place.street1, street2: place.street2};
+    const custom = {};
+    for(const f of customFields){
+      let v = get(r, "cf_" + f.id); if(!v) continue;
+      if(f.type === "date" && /^\d{5}(\.\d+)?$/.test(v)){ const d = new Date(Math.round((+v - 25569) * 864e5)); if(!isNaN(d)) v = d.toISOString().slice(0, 10); }
+      if(f.type === "number"){ const n = Number(v.replace(/,/g, "")); if(isFinite(n)) v = String(n); }
+      custom[f.id] = v;
+    }
+    if(Object.keys(custom).length) dev.custom = custom;
+    const owner = ipOwner.get(ip);
+    seenIp.set(ip, r.n); skipNums.add(ipNum(ip));
+    if(owner){
+      if(dupMode === "update"){ useInter(); updates.push({row: r.n, id: owner.id, prev: owner, dev}); }
+      else problems.push({n: r.n, why: `IP ${ip} is already used by ${owner.name} at ${plainStreet(owner.street1)} & ${plainStreet(owner.street2)} (skipped)`});
+      continue;
+    }
+    useInter();
+    adds.push({row: r.n, dev, autoIp: !!r.autoIp});
+  }
+  const newNames = [...new Set([...adds, ...updates].map(a => a.dev.name))].filter(n => !deviceOpts.some(o => norm(o.name) === norm(n)));
+  imp.plan = {adds, updates, newInters, interUpdates, problems, interOnly, newNames};
+  impRenderPlan();
+}
+function impRenderPlan(){
+  const p = imp.plan, skipped = p.problems.filter(x => !x.warn).length, warns = p.problems.filter(x => x.warn).length;
+  const bits = [];
+  if(p.adds.length) bits.push(`<b>${p.adds.length}</b> new device${p.adds.length === 1 ? "" : "s"}${p.adds.some(a => a.autoIp) ? ` (${p.adds.filter(a => a.autoIp).length} get the next free IP from their pool)` : ""}`);
+  if(p.updates.length) bits.push(`<b>${p.updates.length}</b> existing device${p.updates.length === 1 ? "" : "s"} updated`);
+  if(p.newInters.size) bits.push(`<b>${p.newInters.size}</b> new intersection${p.newInters.size === 1 ? "" : "s"}`);
+  if(p.interUpdates.size) bits.push(`details filled in for <b>${p.interUpdates.size}</b> existing intersection${p.interUpdates.size === 1 ? "" : "s"}`);
+  if(p.newNames.length) bits.push(`<b>${p.newNames.length}</b> name${p.newNames.length === 1 ? "" : "s"} added to the Device list`);
+  $("#impSummary").innerHTML = bits.length ? `Ready to import: ${bits.join(" · ")}.` : skipped ? `Nothing to import — every row is skipped (reasons below).` : `Nothing to import yet — check the column matches above.`;
+  $("#impSummary").style.color = bits.length ? "" : "var(--danger)";
+  $("#impProblems").innerHTML = p.problems.length ? `<div class="hint" style="margin:8px 0 4px">${skipped ? `<b>${skipped}</b> row${skipped === 1 ? "" : "s"} will be skipped` : ""}${skipped && warns ? " · " : ""}${warns ? `${warns} note${warns === 1 ? "" : "s"}` : ""}:</div>
+    <div class="impprob">${p.problems.slice(0, 200).map(x => `<div class="${x.warn ? "warn" : ""}"><span>Row ${x.n}</span> ${esc(x.why)}</div>`).join("")}${p.problems.length > 200 ? `<div>…and ${p.problems.length - 200} more</div>` : ""}</div>` : "";
+  const sample = [...p.adds, ...p.updates].slice(0, 8);
+  $("#impPreview").innerHTML = sample.length ? `<table class="imptable"><thead><tr><th>Row</th><th>Intersection</th><th>Device</th><th>Type</th><th>IP</th></tr></thead><tbody>${
+    sample.map(a => `<tr><td>${a.row}</td><td>${esc(plainStreet(a.dev.street1))} &amp; ${esc(plainStreet(a.dev.street2))}</td><td>${esc(a.dev.name)}</td><td>${esc(a.dev.type)}</td><td class="ip">${esc(a.dev.ip)}${a.autoIp ? ' <span class="hint">(auto)</span>' : ""}${a.id ? ' <span class="hint">(update)</span>' : ""}</td></tr>`).join("")}</tbody></table>${p.adds.length + p.updates.length > sample.length ? `<div class="hint" style="margin-top:4px">First ${sample.length} of ${p.adds.length + p.updates.length} shown.</div>` : ""}` : "";
+  $("#impStep3").classList.remove("hidden");
+  $("#impGo").disabled = !(p.adds.length || p.updates.length || p.newInters.size || p.interUpdates.size);
+}
+let importing = false;
+async function impRun(){
+  const p = imp.plan, st = $("#impStatus");
+  if(!db) return void(st.textContent = "Saving isn't available in this view.");
+  const total = p.newNames.length + p.newInters.size + p.interUpdates.size + p.adds.length + p.updates.length;
+  let done = 0, failed = [];
+  const tick = () => { done++; if(done % 5 === 0 || done === total) st.textContent = `Importing… ${done} of ${total}`; };
+  $("#impGo").disabled = true; $("#impFile").disabled = true; st.style.color = "";
+  importing = true;
+  const run = async (jobs, limit = 6) => { let i = 0; await Promise.all(Array.from({length: Math.min(limit, jobs.length)}, async () => { while(i < jobs.length){ const j = jobs[i++]; try{ await j.fn(); }catch(ex){ failed.push({n: j.row, why: ex?.status === 409 ? (ex.message || "Duplicate IP") : writeError(ex)}); } tick(); } })); };
+  const now = new Date().toISOString();
+  try{
+    await run(p.newNames.map(name => ({fn: () => db.collection("deviceOptions").doc().set({name, created: now})})));
+    await run([...p.newInters.values()].map(v => ({fn: () => saveInterDoc(v)})));
+    await run([...p.interUpdates.entries()].map(([key, det]) => ({fn: async () => {
+      const i = inters.get(key); if(!i) return;
+      await saveInterDoc({street1: i.street1, street2: i.street2, number: det.number || i.number, atmsId: det.atmsId || i.atmsId, atmsPort: det.atmsPort || i.atmsPort, notes: i.notes, gps: det.gps || i.gps}, i.docId || null);
+    }})));
+    await run(p.adds.map(a => ({row: a.row, fn: () => db.collection("devices").doc().set({...a.dev, created: now, updated: now})})));
+    await run(p.updates.map(u => ({row: u.row, fn: () => {
+      const custom = {...(u.prev.custom || {}), ...(u.dev.custom || {})};
+      const merged = {...u.prev, ...Object.fromEntries(Object.entries(u.dev).filter(([k, v]) => v !== "" && k !== "custom"))};
+      delete merged.id;
+      if(Object.keys(custom).length) merged.custom = custom;
+      return db.collection("devices").doc(u.id).set({...merged, created: u.prev.created || now, updated: now});
+    }})));
+  } finally { importing = false; update(); $("#impFile").disabled = false; }
+  const ok = p.adds.length + p.updates.length - failed.length;
+  st.style.color = failed.length ? "var(--danger)" : "";
+  st.innerHTML = `Imported from ${esc(imp.file)}: ${ok} device${ok === 1 ? "" : "s"}${p.newInters.size ? `, ${p.newInters.size} new intersection${p.newInters.size === 1 ? "" : "s"}` : ""}.${failed.length ? ` ${failed.length} couldn't be saved: ${failed.slice(0, 5).map(f => `row ${f.n} (${esc(f.why)})`).join("; ")}${failed.length > 5 ? "…" : ""}` : ""}`;
+  toast(`Import finished — ${ok} device${ok === 1 ? "" : "s"}`);
+  $("#impStep2").classList.add("hidden"); $("#impStep3").classList.add("hidden"); imp = null; $("#impFile").value = "";
+}
+/* a template with the right headings (opens in Excel) */
+async function impTemplate(){
+  const heads = ["Street 1","Street 2","Device","Device type","IP address","MAC","Device notes","Intersection ID","ATMS Station ID","ATMS Port","GPS", ...customFields.map(f => f.label)];
+  const ex = ["Main St","1st Ave","Axis P1375","Camera","10.20.0.15","00:40:8C:12:34:56","NE corner","INT-101","1042","10001","45.6201, -122.6702"];
+  const q = v => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const csv = "﻿" + [heads, ex].map(r => r.map(c => q(String(c ?? ""))).join(",")).join("\r\n") + "\r\n";
+  if(window.__STANDALONE){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"})); a.download = "traffic-ip-import-template.csv"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); return; }
+  try{ const dl = await window.claude?.use("downloads"); if(dl) await dl.save({filename: "traffic-ip-import-template.csv", data: csv}); }catch{}
+}
+$("#impFile").addEventListener("change", e => { const f = e.target.files?.[0]; if(f) impLoadFile(f); });
+$("#impSheet").onchange = e => impUseSheet(+e.target.value);
+$("#impMap").addEventListener("change", e => { const s = e.target.closest("select[data-imp]"); if(!s) return; if(s.value === "") delete imp.map[s.dataset.imp]; else imp.map[s.dataset.imp] = +s.value; impPlan(); });
+$("#impDup").onchange = () => imp && impPlan();
+$("#impGo").onclick = () => {
+  const p = imp?.plan; if(!p) return;
+  openConfirm("Import now?", `This adds <b>${p.adds.length}</b> device${p.adds.length === 1 ? "" : "s"}${p.updates.length ? ` and updates <b>${p.updates.length}</b>` : ""}${p.newInters.size ? `, with <b>${p.newInters.size}</b> new intersection${p.newInters.size === 1 ? "" : "s"}` : ""}. ${p.problems.filter(x => !x.warn).length ? `${p.problems.filter(x => !x.warn).length} row(s) are skipped. ` : ""}<br><br>Tip: <b>Download a backup</b> first if you might want to undo it.`, "Import", () => { impRun(); }, {safe: true});
+};
+$("#impCancel").onclick = () => { impOpen(); $("#impFile").value = ""; };
+$("#impTemplate").onclick = impTemplate;
+
 /* ---------- backup & restore (all data) ---------- */
 const BACKUP_COLLS = ["intersections","devices","pools","deviceOptions","members"];
 const ADMIN_DOCS = ["config","branding","settings","fields"];
@@ -2654,6 +3046,7 @@ pform.addEventListener("submit", async e=>{
 
 /* ---------- data ---------- */
 function update(){
+  if(importing) return;            // one redraw at the end of an import, not one per row
   rebuild(); refreshOptions(); render();
   if($("#poolScrim").classList.contains("open")){ renderPools(); renderPoolTypes(); }
   if($("#devListScrim").classList.contains("open")) renderDevList();
