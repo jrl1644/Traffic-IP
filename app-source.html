@@ -18,6 +18,13 @@
   }
   :root[data-theme="dark"]{ --bg:#141816; --panel:#1c211f; --ink:#e8ece9; --muted:#97a19c; --line:#2d3431; --chip:#252b28; --sign:#2f9a68; color-scheme:dark; }
   :root[data-theme="light"]{ color-scheme:light; }
+  /* dark mode: the search box a shade lighter than the page, so it stands out */
+  :root[data-theme="dark"] #qi{background:#2a322f;border-color:#46504b}
+  :root[data-theme="dark"] #qi::placeholder{color:#a3ada8}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) #qi{background:#2a322f;border-color:#46504b}
+    :root:not([data-theme="light"]) #qi::placeholder{color:#a3ada8}
+  }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45}
   header{background:var(--sign);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -906,7 +913,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-15";
+const APP_VERSION = "26.11.12-16";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
