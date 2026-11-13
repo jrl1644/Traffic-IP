@@ -70,8 +70,13 @@
   td.act{white-space:nowrap;text-align:right;width:1%}
   .type{display:inline-block;background:var(--chip);border-radius:999px;padding:1px 10px;font-size:13px;white-space:nowrap}
   mark{background:#ffe27a;color:#1c2321;border-radius:2px;padding:0 1px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel);flex:none}
+  .seg .btn{border:none;border-radius:0;margin:0;white-space:nowrap}
+  .seg .btn + .btn{border-left:1px solid var(--line)}
+  .seg .btn:hover{background:var(--chip)}
+  body.nolist .seg{display:none}
   body.nofilter #clearBtn,
-  body.nolist .sortwrap, body.nolist #expandAll, body.nolist #collapseAll, body.nolist .colwrap{display:none}
+  body.nolist .sortwrap, body.nolist .colwrap{display:none}
   .controls[hidden],#filtersBtn[hidden]{display:none!important}
   .startpanel{text-align:center;padding:38px 22px 30px;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:14px}
   .startpanel .sp-icon{font-size:30px;line-height:1;margin-bottom:10px;opacity:.85}
@@ -132,6 +137,8 @@
   body.mobile .bar .sp{display:none}
   body.mobile .sortwrap{flex-basis:100%} body.mobile .sortwrap select{flex:1;min-height:40px;font-size:15px}
   body.mobile .bar .btn.ghost{background:var(--panel);border:1px solid var(--line)}
+  body.mobile .bar .seg .btn.ghost{border:none;border-radius:0}
+  body.mobile .bar .seg .btn.ghost + .btn.ghost{border-left:1px solid var(--line)}
   body.mobile .colmenu{right:auto;left:0}
   /* intersection cards: signs on top, details + actions underneath */
   body.mobile .ghead{flex-wrap:wrap;gap:8px;padding:12px}
@@ -452,8 +459,7 @@
       <option value="recent">Recently changed</option>
       <option value="ping" class="saOnly">Ping problems first</option>
     </select></label>
-    <button class="btn ghost" id="expandAll">Expand all</button>
-    <button class="btn ghost" id="collapseAll">Collapse all</button>
+    <span class="seg" role="group" aria-label="Expand or collapse all intersections"><button class="btn ghost" id="expandAll">▾ Expand all</button><button class="btn ghost" id="collapseAll">▸ Collapse all</button></span>
     <button class="btn ghost" id="clearBtn">Clear filters</button>
     <span class="colwrap">
       <button class="btn ghost" id="colBtn" aria-haspopup="true" aria-expanded="false">Columns ▾</button>
@@ -907,7 +913,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-9";
+const APP_VERSION = "26.11.12-10";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
