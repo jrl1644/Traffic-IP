@@ -29,8 +29,9 @@
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45}
   header{background:var(--banner, var(--sign));color:var(--banner-ink, #fff);padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   header h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.2px;flex:1;min-width:220px}
-  header h1 .ver{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:0 6px;margin-right:4px}
-  header h1 small{display:block;font-weight:400;font-size:9px;opacity:.85;margin-top:1px}
+  .hdrright{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none}
+  .hdrmeta{font-weight:400;font-size:9px;opacity:.85;white-space:nowrap;line-height:1.2}
+  header .ver{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:0 6px;margin-right:4px}
   .btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer}
   .btn:hover{filter:brightness(.97)}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -135,7 +136,6 @@
   body.mobile main{padding:14px calc(12px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
   body.mobile header h1{font-size:23px;min-width:0}
   body.mobile header.haslogo{padding-left:calc(var(--logo-w,60px) + 12px + env(safe-area-inset-left))}
-  body.mobile header h1 small{display:block}
   body.mobile .gearbtn{width:42px;height:42px}
   body.mobile #hdrActions{left:10px;right:10px;top:calc(100% - 4px);min-width:0}
   body.mobile #hdrActions .btn{min-height:48px;font-size:16px}
@@ -404,7 +404,7 @@
   .typechips small{color:var(--muted)}
   header .btn{border-color:rgba(255,255,255,.4)}
   /* light banner colors get dark text */
-  html.lightbanner header h1 .ver{background:rgba(0,0,0,.08);border-color:rgba(0,0,0,.25)}
+  html.lightbanner header .ver{background:rgba(0,0,0,.08);border-color:rgba(0,0,0,.25)}
   html.lightbanner header .btn{border-color:rgba(0,0,0,.2)}
   .swatches{display:flex;flex-wrap:wrap;gap:8px}
   .swatch{width:34px;height:34px;border-radius:9px;border:2px solid var(--panel);box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0}
@@ -417,8 +417,11 @@
 <body>
 <header>
   <span id="brandSlot" class="brandslot hidden"><img id="brandLogo" alt="Icon"></span>
-  <h1>Traffic-IP<small><span class="ver" id="appVersion" title="App version (YY.MM.DD-revision)"></span> Joe Leon</small></h1>
+  <h1>Traffic-IP</h1>
+  <div class="hdrright">
+    <small class="hdrmeta"><span class="ver" id="appVersion" title="App version (YY.MM.DD-revision)"></span> Joe Leon</small>
   <button class="btn gearbtn" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </div>
   <nav id="hdrActions">
     <span class="rolechip hidden" id="roleChip" title="Your role in this app"></span>
     <button class="btn hidden" id="adminBtn">Admin</button>
@@ -940,7 +943,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-24";
+const APP_VERSION = "26.11.12-25";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
