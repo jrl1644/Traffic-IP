@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.12-3** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.12-4** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -102,6 +102,8 @@ The pings come from the server, so devices must be reachable from wherever the c
 - or, with Docker older than 20.10, add `cap_add: [NET_RAW]` and `user: root`.
 
 Optional settings: `PING_CONCURRENCY` (default `16`) is how many devices are pinged at once.
+
+While the ping check is on, a legend on the home screen explains the circles and shows how many intersections are in each state (all reply, some don't, none reply) and when the last check ran.
 
 ## Data and backups
 

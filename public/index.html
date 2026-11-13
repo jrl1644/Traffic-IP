@@ -281,6 +281,11 @@
   .pingdot.wait{background:#c3c9c5;animation:pingwait 1.2s ease-in-out infinite}
   @keyframes pingwait{50%{opacity:.35}}
   .ghead .pingdot{margin-right:2px}
+  .pinglegend{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:12.5px;color:var(--muted);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
+  .pinglegend > span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .pinglegend b{color:var(--ink);font-weight:600}
+  .pinglegend .pl-when{color:var(--muted)}
+  body.mobile .pinglegend{flex-basis:100%;border-radius:10px}
   .logobox{display:flex;align-items:stretch;height:84px;border-radius:10px;background:var(--sign);margin-bottom:12px;overflow:hidden;color:#fff}
   .logobox img{height:100%;width:auto;object-fit:cover;display:block}
   .logobox .fake{display:flex;align-items:center;padding:0 16px;font-weight:700;font-size:18px}
@@ -414,6 +419,7 @@
 
   <div class="bar">
     <span id="summary"></span>
+    <span id="pingLegend" class="pinglegend hidden" aria-label="Ping check legend"></span>
     <span class="sp"></span>
     <label class="sortwrap">Sort <select id="sortSel" aria-label="Sort intersections">
       <option value="street">Street A → Z</option>
@@ -880,7 +886,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-3";
+const APP_VERSION = "26.11.12-4";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1315,7 +1321,24 @@ function renderColMenu(){
     + `<div class="colfoot"><button type="button" class="btn ghost" id="colAll">Show all</button><button type="button" class="btn ghost" id="colReset">Reset</button></div>`;
 }
 
+/* home screen: what the ping circles mean, with how many intersections are in each state */
+function renderPingLegend(){
+  const el = $("#pingLegend"); if(!el) return;
+  const on = !!(window.__STANDALONE && pingCfg.enabled);
+  el.classList.toggle("hidden", !on); if(!on) return;
+  if(pingState.available === false){ el.innerHTML = `<span><span class="pingdot off"></span> Ping check is on, but the server can't send pings${pingState.error ? ` — ${esc(pingState.error)}` : ""}</span>`; return; }
+  const n = [0,0,0,0,0]; inters.forEach(i=>n[pingRank(i)]++);
+  const ago = pingState.lastRun ? (()=>{ const m = Math.round((Date.now() - new Date(pingState.lastRun)) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : fmtDate(pingState.lastRun); })() : "";
+  el.innerHTML = `<span title="Every device at the intersection answered"><span class="pingdot ok"></span> All reply <b>${n[3]}</b></span>
+    <span title="Some devices didn't answer"><span class="pingdot some"></span> Some don't <b>${n[1]}</b></span>
+    <span title="No device answered"><span class="pingdot none"></span> None reply <b>${n[0]}</b></span>
+    ${n[2] ? `<span title="Waiting for the first check"><span class="pingdot wait"></span> Checking <b>${n[2]}</b></span>` : ""}
+    <span title="No devices with an IP to check"><span class="pingdot off"></span> Nothing to check <b>${n[4]}</b></span>
+    ${pingState.running ? `<span class="pl-when">checking now…</span>` : ago ? `<span class="pl-when">checked ${esc(ago)}</span>` : ""}`;
+}
+setInterval(()=>{ if(pingCfg.enabled) renderPingLegend(); }, 60000);
 function render(){
+  renderPingLegend();
   { const n = ["#fStreet","#fType","#fField"].filter(x=>$(x).value).length; const fb = $("#filtersBtn"); if(fb) fb.textContent = n ? `Filters (${n}) ▾` : "Filters ▾"; }
   const groups = filtered();
   const hlTerms = getTerms(), fld = $("#fField").value;
