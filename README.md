@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.12-7** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.12-8** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -62,7 +62,7 @@ Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=Experime
 
 ## Phones and desktop
 
-The app detects the device it runs on. iPhones and other phones (and any window narrower than about 760px) get a touch layout: folding **Filters**, larger buttons, intersection cards with their actions underneath, and forms as full-screen sheets with the buttons always in reach. Desktops keep the full layout.
+The app detects the device it runs on. iPhones and other phones (and any window narrower than about 760px) get a touch layout: larger buttons, intersection cards with their actions underneath, and forms as full-screen sheets with the buttons always in reach. Desktops keep the full layout.
 
 ## Accounts, roles and privileges
 
@@ -178,7 +178,7 @@ To pin a specific version, change `#main` in `docker-compose.yml` to a tag or co
 
 ## Notes
 
-- **Search first:** the list stays empty until you search (or set a filter); a start panel shows how many intersections and devices there are, with **Show all intersections** if you want the full list. Intersections you add or change are listed under it for the rest of the session.
+- **Search first:** the list stays empty until you search for an intersection; a start panel shows how many intersections and devices there are, with **Show all intersections** if you want the full list. Intersections you add or change are listed under it for the rest of the session.
 - **Photos & files:** every intersection bar has a **📎 Files** button (with a count) that shows its photos — tap one for a full-screen viewer — and its documents and other files, which open or download. Anyone who can add devices or edit intersections can upload (drag and drop, choose files, or take a photo on a phone); admins and the uploader can delete. Files are stored in `/data/files`; the size limit is `MAX_UPLOAD_MB` (default 50).
 - **Import from Excel:** **Admin → Settings → Import** reads an Excel workbook (.xlsx) or CSV file — one device per row — matches its columns to the app's fields (guessed from the headings), shows a preview with any rows that will be skipped and why, then adds the devices and any new intersections. Duplicate IPs are skipped (or, if you choose, update the existing device); rows without an IP get the next free IP from their pool. **Download a template** gives a ready-made sheet.
 - **Custom device fields:** admins open **Add device** (or Edit) and click **⚙ Custom fields…** to add extra fields (text, number, date or dropdown, optionally required) to the Add/Edit device form. Each one can be shown as a column, printed and searched.

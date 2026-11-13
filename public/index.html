@@ -72,6 +72,7 @@
   mark{background:#ffe27a;color:#1c2321;border-radius:2px;padding:0 1px}
   body.nofilter #clearBtn,
   body.nolist .sortwrap, body.nolist #expandAll, body.nolist #collapseAll, body.nolist .colwrap{display:none}
+  .controls[hidden],#filtersBtn[hidden]{display:none!important}
   .startpanel{text-align:center;padding:38px 22px 30px;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:14px}
   .startpanel .sp-icon{font-size:30px;line-height:1;margin-bottom:10px;opacity:.85}
   .startpanel h2{margin:0 0 8px;font-size:19px;color:var(--ink)}
@@ -412,8 +413,9 @@
     </label>
     <div class="hint" id="qiInfo"></div>
   </div>
-  <div class="controls">
-    <button type="button" class="btn mobileOnly" id="filtersBtn" aria-expanded="false">Filters ▾</button>
+  <!-- "Search everything" and the Street / Device type / Search in filters are switched off (kept empty so the rest of the page works unchanged) -->
+  <div class="controls" hidden>
+    <button type="button" class="btn mobileOnly" id="filtersBtn" aria-expanded="false" hidden>Filters ▾</button>
     <label class="f search"><span>Search everything</span>
       <input id="q" type="search" placeholder="e.g. Main St, 10.20.1., camera, Cabinet 4…" autocomplete="off">
     </label>
@@ -905,7 +907,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-7";
+const APP_VERSION = "26.11.12-8";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1187,7 +1189,7 @@ function startPanel(){
   return `<div class="startpanel">
     <div class="sp-icon" aria-hidden="true">🔍</div>
     <h2>Search to find an intersection</h2>
-    <p>Type a street or both streets (e.g. <i>I-5 at SR-14</i>) in <b>Search for intersection</b>, or an IP address, device, type or ID in <b>Search everything</b>.</p>
+    <p>Type a street or both streets in <b>Search for intersection</b> above — either order, any spelling (e.g. <i>I-5 at SR-14</i>, <i>sr14 &amp; i5</i>), or just one street to see every intersection on it.</p>
     <div class="sp-stats"><span><b>${nI.toLocaleString()}</b> intersection${nI===1?"":"s"}</span><span><b>${nD.toLocaleString()}</b> device${nD===1?"":"s"}</span>${fileDocs.length ? `<span><b>${fileDocs.length.toLocaleString()}</b> photo${fileDocs.length===1?"":"s"} &amp; file${fileDocs.length===1?"":"s"}</span>` : ""}</div>
     <div class="sp-acts">
       <button type="button" class="btn" data-showall="1">Show all intersections</button>
