@@ -12,7 +12,7 @@
     --accent:#e0a100; --accent-ink:#1c2321; --sign:#1f6f4a; --danger:#b3261e; --chip:#eef1ec;
     --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'IBM Plex Sans',system-ui,sans-serif;
   }
-  /* theme: follows the device unless Light or Dark is picked (☾ button in the header) */
+  /* theme: follows the device unless Light or Dark is picked (⚙ menu → Theme) */
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){ --bg:#141816; --panel:#1c211f; --ink:#e8ece9; --muted:#97a19c; --line:#2d3431; --chip:#252b28; --sign:#2f9a68; color-scheme:dark; }
   }
@@ -92,7 +92,17 @@
   /* ===== layout switch: body.mobile is set by script for phones (iPhone etc.); desktop is untouched ===== */
   .gsigns,.gmeta{display:contents}
   body:not(.mobile) .mobileOnly{display:none!important}
-  #hdrActions{display:contents}
+  /* every header action lives in the gear menu */
+  .gearbtn{flex:none;width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:12px}
+  .gearbtn svg{transition:transform .25s}
+  body.menu-open .gearbtn svg{transform:rotate(60deg)}
+  #hdrActions{display:none;position:absolute;right:24px;top:calc(100% - 8px);z-index:20;min-width:250px;flex-direction:column;align-items:stretch;gap:2px;padding:8px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.22)}
+  body.menu-open #hdrActions{display:flex}
+  #hdrActions .btn{background:none;border:none;box-shadow:none;color:var(--ink);text-align:left;justify-content:flex-start;padding:10px 12px;border-radius:8px;font-weight:500;width:100%}
+  #hdrActions .btn:hover,#hdrActions .btn:focus-visible{background:var(--chip);outline:none}
+  #hdrActions .rolechip{align-self:flex-start;margin:2px 4px 6px;color:var(--muted);border-color:var(--line);background:var(--chip)}
+  #hdrActions .rolechip::before{content:"Your role: ";font-weight:500}
+  #hdrActions .menusep{height:1px;background:var(--line);margin:4px 2px}
 
   body.mobile{font-size:16px;-webkit-text-size-adjust:100%}
   /* iPhone notch / home bar */
@@ -101,12 +111,9 @@
   body.mobile header h1{font-size:20px;min-width:0}
   body.mobile header.haslogo{padding-left:calc(var(--logo-w,60px) + 12px + env(safe-area-inset-left))}
   body.mobile header h1 small{display:block}
-  body.mobile #menuBtn{flex:none;min-height:40px}
-  /* header actions fold into a menu */
-  body.mobile #hdrActions{display:none;position:absolute;left:0;right:0;top:100%;background:var(--sign);padding:8px calc(14px + env(safe-area-inset-right)) 14px calc(14px + env(safe-area-inset-left));box-shadow:0 10px 20px rgba(0,0,0,.2);flex-direction:column;gap:8px}
-  body.mobile.menu-open #hdrActions{display:flex}
-  body.mobile #hdrActions .btn{width:100%;min-height:46px;text-align:left;font-size:16px}
-  body.mobile #hdrActions .rolechip{align-self:flex-start}
+  body.mobile .gearbtn{width:42px;height:42px}
+  body.mobile #hdrActions{left:10px;right:10px;top:calc(100% - 4px);min-width:0}
+  body.mobile #hdrActions .btn{min-height:48px;font-size:16px}
   /* inputs: 16px stops iPhone zooming in on focus */
   body.mobile input,body.mobile select,body.mobile textarea{font-size:16px;min-height:44px}
   body.mobile textarea{min-height:80px}
@@ -383,7 +390,7 @@
 <header>
   <span id="brandSlot" class="brandslot hidden"><img id="brandLogo" alt="Icon"></span>
   <h1>Traffic-IP<small><span class="ver" id="appVersion" title="App version (YY.MM.DD-revision)"></span> Joe Leon</small></h1>
-  <button class="btn mobileOnly" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions">☰ Menu</button>
+  <button class="btn gearbtn" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   <nav id="hdrActions">
     <span class="rolechip hidden" id="roleChip" title="Your role in this app"></span>
     <button class="btn hidden" id="adminBtn">Admin</button>
@@ -391,6 +398,7 @@
     <button class="btn" id="devListBtn">Device list</button>
     <button class="btn" id="poolsBtn">Address pools</button>
     <button class="btn" id="addInterBtn">+ Add intersection</button>
+    <div class="menusep" aria-hidden="true"></div>
     <button class="btn" id="themeBtn" type="button" title="Theme"></button>
   </nav>
 </header>
@@ -786,7 +794,7 @@
 <div class="scrim" id="themeScrim">
   <div class="modal" style="max-width:520px">
     <h2>Choose a look</h2>
-    <p class="hint" style="margin:-4px 0 14px;font-size:14px">How should Traffic-IP look on this device? You can change it any time with the theme button in the header<span class="mobileOnly"> (in ☰ Menu)</span>.</p>
+    <p class="hint" style="margin:-4px 0 14px;font-size:14px">How should Traffic-IP look on this device? You can change it any time under <b>⚙ → Theme</b> at the top right.</p>
     <div class="themepick">
       <button type="button" data-pick="light"><span class="tprev tlight"><i></i><b></b><b></b></span><strong>☀ Light</strong></button>
       <button type="button" data-pick="dark"><span class="tprev tdark"><i></i><b></b><b></b></span><strong>☾ Dark</strong></button>
@@ -882,7 +890,6 @@
     const mobile = isPhoneUA || narrow.matches;
     document.body.classList.toggle("mobile", mobile);
     document.body.classList.toggle("desktop", !mobile);
-    if(!mobile) document.body.classList.remove("menu-open");
   };
   apply();
   narrow.addEventListener ? narrow.addEventListener("change", apply) : narrow.addListener(apply);
@@ -890,14 +897,15 @@
   const menuBtn = document.getElementById("menuBtn");
   menuBtn.addEventListener("click", e=>{ e.stopPropagation(); const open = document.body.classList.toggle("menu-open"); menuBtn.setAttribute("aria-expanded", open); });
   document.getElementById("hdrActions").addEventListener("click", e=>{ if(e.target.closest(".btn") && !e.target.closest("#themeBtn")) { document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
-  document.addEventListener("click", e=>{ if(!e.target.closest("header")){ document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
+  document.addEventListener("click", e=>{ if(!e.target.closest("#hdrActions") && !e.target.closest("#menuBtn")){ document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape" && document.body.classList.contains("menu-open")){ document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); menuBtn.focus(); } }, true);
   // filters (phones): Street / Device type / Search in fold away
   const fb = document.getElementById("filtersBtn");
   fb.addEventListener("click", ()=>{ const open = document.body.classList.toggle("filters-open"); fb.setAttribute("aria-expanded", open); });
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-6";
+const APP_VERSION = "26.11.12-7";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1305,7 +1313,7 @@ let theme = (()=>{ try{ const t = localStorage.getItem(THEME_KEY); return THEMES
 function applyTheme(){
   if(theme==="auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", theme);
   const b = $("#themeBtn");
-  b.textContent = document.body.classList.contains("mobile") ? `Theme: ${THEME_LABEL[theme].slice(2)}` : THEME_LABEL[theme];
+  b.textContent = `${THEME_LABEL[theme].slice(0,1)}  Theme: ${THEME_LABEL[theme].slice(2)}`;
   b.title = `Theme: ${THEME_LABEL[theme].slice(2)}${theme==="auto" ? " (follows this device's setting)" : ""} — click to change`;
 }
 /* asked once per device, after the first sign-in */
@@ -1321,7 +1329,7 @@ $("#themeScrim").addEventListener("click", e=>{
   theme = b.dataset.pick;
   try{ theme==="auto" ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, theme); localStorage.setItem(THEME_ASKED, "1"); }catch{}
   applyTheme(); $("#themeScrim").classList.remove("open");
-  toast(`Theme: ${THEME_LABEL[theme].slice(2)} — change it any time with the theme button`);
+  toast(`Theme: ${THEME_LABEL[theme].slice(2)} — change it any time under ⚙ → Theme`);
 });
 $("#themeBtn").onclick = ()=>{
   theme = THEMES[(THEMES.indexOf(theme)+1) % THEMES.length];

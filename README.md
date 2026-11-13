@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.12-6** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.12-7** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -62,20 +62,20 @@ Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=Experime
 
 ## Phones and desktop
 
-The app detects the device it runs on. iPhones and other phones (and any window narrower than about 760px) get a touch layout: a **☰ Menu** for the header actions, folding **Filters**, larger buttons, intersection cards with their actions underneath, and forms as full-screen sheets with the buttons always in reach. Desktops keep the full layout.
+The app detects the device it runs on. iPhones and other phones (and any window narrower than about 760px) get a touch layout: folding **Filters**, larger buttons, intersection cards with their actions underneath, and forms as full-screen sheets with the buttons always in reach. Desktops keep the full layout.
 
 ## Accounts, roles and privileges
 
 New accounts get a temporary password from an admin. The first time someone signs in with it, they must choose their own password before they can use the app. The same happens after an admin resets someone's password.
 
-Open **Admin** in the header (Admins only).
+Open **⚙ → Admin** (Admins only). Everything that used to be a header button — Admin, Account, Device list, Address pools, + Add intersection and Theme — is in the **⚙ gear menu** at the top right.
 
 - **Accounts & roles:** create accounts with a temporary password, set each person's role, reset passwords, and disable or delete accounts. Disabling or deleting someone signs them out straight away.
 - **Role privileges:** tick what **Technicians** and **Viewers** may do (add/edit/remove devices and intersections, manage the Device list and address pools). Admins can always do everything.
 - **Settings → Backup & Restore:** download all data as one `.json` file, or restore a backup (replaces all data; type RESTORE to confirm). **Reset database** gives a clean start: it deletes all intersections, devices, address pools and the Device list, and clears the custom icon and settings (type RESET to confirm). Accounts and role privileges are kept. A copy of the deleted data is saved in `/data/backups/before-reset-….json`. User accounts and passwords aren't included and aren't changed. Before a restore, the server saves a copy of the replaced data in `/data/backups/before-restore-….json`. Backups from the claude.ai version of the app can be restored here too.
 - **Settings → Custom icon:** upload your organization's logo or a photo (PNG, JPG, SVG or WebP). It's resized and cropped automatically to fill the top-left corner of the header, shown on the sign-in screen, and used as the app's icon for browser tabs, bookmarks and iPhone/Android **Add to Home Screen** (a built-in Traffic-IP icon is used until you upload one).
 
-Everyone can use **Account** in the header to change their own password or sign out.
+Everyone can use **⚙ → Account** to change their own password or sign out.
 
 **Roles are enforced by the server.** Someone without permission can't make a change even by bypassing the screens. The server also refuses duplicate IP addresses, even when two people save at the same moment.
 
@@ -182,7 +182,7 @@ To pin a specific version, change `#main` in `docker-compose.yml` to a tag or co
 - **Photos & files:** every intersection bar has a **📎 Files** button (with a count) that shows its photos — tap one for a full-screen viewer — and its documents and other files, which open or download. Anyone who can add devices or edit intersections can upload (drag and drop, choose files, or take a photo on a phone); admins and the uploader can delete. Files are stored in `/data/files`; the size limit is `MAX_UPLOAD_MB` (default 50).
 - **Import from Excel:** **Admin → Settings → Import** reads an Excel workbook (.xlsx) or CSV file — one device per row — matches its columns to the app's fields (guessed from the headings), shows a preview with any rows that will be skipped and why, then adds the devices and any new intersections. Duplicate IPs are skipped (or, if you choose, update the existing device); rows without an IP get the next free IP from their pool. **Download a template** gives a ready-made sheet.
 - **Custom device fields:** admins open **Add device** (or Edit) and click **⚙ Custom fields…** to add extra fields (text, number, date or dropdown, optionally required) to the Add/Edit device form. Each one can be shown as a column, printed and searched.
-- **Dark mode:** the theme button in the header switches between Auto (follows the phone or computer), Light and Dark. The first time someone signs in on a device, they're asked which they prefer. The choice is remembered on each device.
+- **Dark mode:** **⚙ → Theme** switches between Auto (follows the phone or computer), Light and Dark. The first time someone signs in on a device, they're asked which they prefer. The choice is remembered on each device.
 - **Print:** click **Print** on an intersection bar for a clean page with your icon and the intersection as its heading. Tick which intersection details and device columns to print; your choices are remembered.
 - Street-sign fonts load from Google Fonts when the browser is online. Without internet access the app works the same, using the system font.
 - **📍 Map** and **Pick on map** open Google Maps in the browser, which needs internet access.
