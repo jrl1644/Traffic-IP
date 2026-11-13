@@ -281,6 +281,9 @@
   .pingdot.wait{background:#c3c9c5;animation:pingwait 1.2s ease-in-out infinite}
   @keyframes pingwait{50%{opacity:.35}}
   .ghead .pingdot{margin-right:2px}
+  .devname{display:inline-flex;align-items:center;gap:8px}
+  .devname .pingdot, .msum .pingdot{width:10px;height:10px}
+  body.mobile #list .msum .pingdot{align-self:center;flex:none}
   .pinglegend{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:12.5px;color:var(--muted);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
   .pinglegend > span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
   .pinglegend b{color:var(--ink);font-weight:600}
@@ -886,7 +889,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-5";
+const APP_VERSION = "26.11.12-6";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1272,7 +1275,7 @@ function refreshOptions(){
 const dash = '<span style="color:var(--muted)">—</span>';
 const fmtDate = v => { if(!v) return ""; const d = new Date(v); return isNaN(d) ? "" : d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}); };
 const COLUMNS = [
-  {key:"name",  label:"Device", on:true,  cell:(d,hl)=>`<td data-l="Device"><strong>${hl(d.name,"name")}</strong></td>`},
+  {key:"name",  label:"Device", on:true,  cell:(d,hl)=>`<td data-l="Device"><span class="devname">${devPingDot(d)}<strong>${hl(d.name,"name")}</strong></span></td>`},
   {key:"type",  label:"Type",        on:true,  cell:(d,hl)=>`<td data-l="Type"><span class="type">${hl(d.type,"type")}</span></td>`},
   {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(d.ip)}" title="Click to copy">${hl(d.ip,"ip")}</span>${(()=>{ const twin = devices.find(x=>x.ip===d.ip && x.id!==d.id);
     return twin ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="Also used by ${esc(twin.name)} at ${esc(plainStreet(twin.street1))} & ${esc(plainStreet(twin.street2))}">⚠ duplicate IP — fix needed</small>` : ""; })()}${(()=>{ const tp=typePool(d.type); return tp?.range && !inRange(d.ip,tp.range) ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="${esc(d.type)} IPs normally come from ${esc(tp.name)} (${esc(tp.range.text)})">outside ${esc(tp.name)} pool</small>` : ""; })()}</td>`},
@@ -1329,6 +1332,17 @@ function renderColMenu(){
     + `<div class="colfoot"><button type="button" class="btn ghost" id="colAll">Show all</button><button type="button" class="btn ghost" id="colReset">Reset</button></div>`;
 }
 
+/* one device's ping result, shown left of its name (only while the ping check is on) */
+function devPingDot(d){
+  if(!(window.__STANDALONE && pingCfg.enabled)) return "";
+  const ip = String(d.ip||"").trim();
+  if(!ip) return `<span class="pingdot off" title="No IP address to ping"></span>`;
+  const r = pingState.results[ip];
+  if(!r) return `<span class="pingdot wait" title="Waiting for the first ping check"></span>`;
+  const when = r.at ? ` · checked ${new Date(r.at).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}` : "";
+  return r.ok ? `<span class="pingdot ok" title="Answers ping${r.rttMs!=null ? ` (${r.rttMs} ms)` : ""}${when}"></span>`
+              : `<span class="pingdot none" title="Doesn't answer ping${r.error ? ` — ${esc(r.error)}` : ""}${when}"></span>`;
+}
 /* home screen: what the ping circles mean, with how many intersections are in each state */
 function renderPingLegend(){
   const el = $("#pingLegend"); if(!el) return;
@@ -1414,7 +1428,7 @@ function render(){
         ${devs.length ? `<table>
         <thead><tr>${shownCols().map(c=>`<th>${c.label}</th>`).join("")}<th></th></tr></thead>
         <tbody>${devs.map(d=>`<tr class="${mobOpen.has(d.id)?"mopen":""}">
-          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span><span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(d.ip,"ip")}</span></td>
+          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span>${devPingDot(d)}<span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(d.ip,"ip")}</span></td>
           ${shownCols().map(c=>c.cell(d,hl)).join("")}
           <td class="act">${can("devices.edit")?`<button class="btn ghost" data-edit="${esc(d.id)}">Edit</button>`:""}</td>
         </tr>`).join("")}</tbody></table>`
