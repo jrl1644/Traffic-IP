@@ -29,6 +29,11 @@
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45}
   header{background:var(--banner, var(--sign));color:var(--banner-ink, #fff);padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   header h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.2px;flex:1;min-width:220px}
+  /* "Traffic-IP" wordmark with a winding road through it */
+  header h1.wmh1{line-height:0}
+  .wordmark{display:block;height:50px;width:auto;max-width:100%;overflow:visible}
+  body.mobile .wordmark{height:38px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .hdrright{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none}
   .hdrmeta{font-weight:400;font-size:9px;opacity:.85;white-space:nowrap;line-height:1.2}
   header .ver{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:0 6px;margin-right:4px}
@@ -417,7 +422,15 @@
 <body>
 <header>
   <span id="brandSlot" class="brandslot hidden"><img id="brandLogo" alt="Icon"></span>
-  <h1>Traffic-IP</h1>
+  <h1 class="wmh1"><span class="sr-only">Traffic-IP</span>
+    <svg class="wordmark" viewBox="0 0 280 64" aria-hidden="true" focusable="false">
+      <path d="M2 58C30 58 40 20 78 22S120 50 150 44S200 8 236 12S270 34 278 30" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="15" stroke-linecap="round"/>
+      <path d="M2 58C30 58 40 20 78 22S120 50 150 44S200 8 236 12S270 34 278 30" fill="none" stroke="#3b4045" stroke-width="12" stroke-linecap="round"/>
+      <path d="M2 58C30 58 40 20 78 22S120 50 150 44S200 8 236 12S270 34 278 30" fill="none" stroke="#f2c230" stroke-width="1.4" stroke-dasharray="5 5" stroke-linecap="round"/>
+      <text x="140" y="45" text-anchor="middle" font-family="Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif" font-weight="800" font-size="41" letter-spacing="-0.5"
+        fill="currentColor" stroke="var(--banner, var(--sign))" stroke-width="5" paint-order="stroke" stroke-linejoin="round">Traffic-IP</text>
+    </svg>
+  </h1>
   <div class="hdrright">
     <small class="hdrmeta"><span class="ver" id="appVersion" title="App version (YY.MM.DD-revision)"></span> Joe Leon</small>
   <button class="btn gearbtn" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="hdrActions" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -943,7 +956,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-25";
+const APP_VERSION = "26.11.12-26";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
