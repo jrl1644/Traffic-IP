@@ -12,7 +12,7 @@
     --accent:#e0a100; --accent-ink:#1c2321; --sign:#1f6f4a; --danger:#b3261e; --chip:#eef1ec;
     --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'IBM Plex Sans',system-ui,sans-serif;
   }
-  /* theme: follows the device unless Light or Dark is picked (⚙ menu → Theme) */
+  /* theme: Light or Dark (⚙ menu → Theme); before a choice the device setting decides the starting one */
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){ --bg:#141816; --panel:#1c211f; --ink:#e8ece9; --muted:#97a19c; --line:#2d3431; --chip:#252b28; --sign:#2f9a68; color-scheme:dark; }
   }
@@ -190,7 +190,7 @@
   .cfrow .nm{flex:1;min-width:140px;font-weight:500}
   .cfrow .nm small{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
   .cfrow .btn{padding:4px 8px}
-  .themepick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .themepick{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
   body.mobile .themepick{grid-template-columns:1fr}
   .themepick button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 10px;border:2px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit;cursor:pointer}
   .themepick button:hover,.themepick button:focus-visible{border-color:var(--accent);outline:none}
@@ -204,7 +204,6 @@
   .tprev b{display:block;height:14%;margin:8% 10% 0;border-radius:3px}
   .tlight{background:#f4f5f2} .tlight b{background:#fff;box-shadow:0 0 0 1px #dfe3df}
   .tdark{background:#141816} .tdark i{background:#2f9a68} .tdark b{background:#1c211f;box-shadow:0 0 0 1px #2d3431}
-  .tauto{background:linear-gradient(135deg,#f4f5f2 50%,#141816 50%)} .tauto b{background:rgba(127,127,127,.45)}
   a.btn{text-decoration:none}
   body.mobile .ghead .gact .btn{white-space:nowrap;padding-left:10px;padding-right:10px;min-width:0}
   .filesbtn .fcount{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:999px;background:var(--chip);color:var(--ink);font-size:12px;text-align:center}
@@ -393,7 +392,7 @@
   .typechips small{color:var(--muted)}
   header .btn{border-color:rgba(255,255,255,.4)}
 </style>
-<script>try{var t=localStorage.getItem("traffic-ip-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<script>try{var t=localStorage.getItem("traffic-ip-theme");if(t!=="dark"&&t!=="light")t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 </head>
 <body>
 <header>
@@ -807,7 +806,6 @@
     <div class="themepick">
       <button type="button" data-pick="light"><span class="tprev tlight"><i></i><b></b><b></b></span><strong>☀ Light</strong></button>
       <button type="button" data-pick="dark"><span class="tprev tdark"><i></i><b></b><b></b></span><strong>☾ Dark</strong></button>
-      <button type="button" data-pick="auto"><span class="tprev tauto"><i></i><b></b><b></b></span><strong>◐ Auto</strong><small>Follows this device</small></button>
     </div>
   </div>
 </div>
@@ -913,7 +911,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-16";
+const APP_VERSION = "26.11.12-17";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1341,14 +1339,15 @@ const cfShow = (d, f) => { const v = cfValue(d, f); return f.type==="date" && v 
 const allCols = () => [...COLUMNS, ...customFields.map(f=>({key:"cf_"+f.id, label:f.label, on:false, custom:f,
   cell:(d,hl)=>{ const v = cfShow(d,f); return `<td data-l="${esc(f.label)}">${v ? hl(v,"custom") : dash}</td>`; }}))];
 /* ---------- light / dark theme (remembered on this device) ---------- */
-const THEME_KEY = "traffic-ip-theme", THEMES = ["auto","light","dark"];
-const THEME_LABEL = {auto:"◐ Auto", light:"☀ Light", dark:"☾ Dark"};
-let theme = (()=>{ try{ const t = localStorage.getItem(THEME_KEY); return THEMES.includes(t) ? t : "auto"; }catch{ return "auto"; } })();
+const THEME_KEY = "traffic-ip-theme", THEMES = ["light","dark"];
+const THEME_LABEL = {light:"☀ Light", dark:"☾ Dark"};
+// two choices; before one is picked, start with whatever the device uses
+let theme = (()=>{ try{ const t = localStorage.getItem(THEME_KEY); if(THEMES.includes(t)) return t; }catch{} return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"; })();
 function applyTheme(){
-  if(theme==="auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.setAttribute("data-theme", theme);
   const b = $("#themeBtn");
   b.textContent = `${THEME_LABEL[theme].slice(0,1)}  Theme: ${THEME_LABEL[theme].slice(2)}`;
-  b.title = `Theme: ${THEME_LABEL[theme].slice(2)}${theme==="auto" ? " (follows this device's setting)" : ""} — click to change`;
+  b.title = `Theme: ${THEME_LABEL[theme].slice(2)} — click to switch to ${theme==="dark" ? "Light" : "Dark"}`;
 }
 /* asked once per device, after the first sign-in */
 const THEME_ASKED = "traffic-ip-theme-asked";
@@ -1356,18 +1355,18 @@ function maybeAskTheme(){
   try{ if(localStorage.getItem(THEME_ASKED) || localStorage.getItem(THEME_KEY)) return; }catch{ return; }
   if(document.querySelector(".scrim.open")) return;
   $("#themeScrim").classList.add("open");
-  setTimeout(()=>$("#themeScrim [data-pick=auto]").focus(), 30);
+  setTimeout(()=>$(`#themeScrim [data-pick=${theme}]`).focus(), 30);
 }
 $("#themeScrim").addEventListener("click", e=>{
   const b = e.target.closest("[data-pick]"); if(!b) return;
   theme = b.dataset.pick;
-  try{ theme==="auto" ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, theme); localStorage.setItem(THEME_ASKED, "1"); }catch{}
+  try{ localStorage.setItem(THEME_KEY, theme); localStorage.setItem(THEME_ASKED, "1"); }catch{}
   applyTheme(); $("#themeScrim").classList.remove("open");
   toast(`Theme: ${THEME_LABEL[theme].slice(2)} — change it any time under ⚙ → Theme`);
 });
 $("#themeBtn").onclick = ()=>{
   theme = THEMES[(THEMES.indexOf(theme)+1) % THEMES.length];
-  try{ theme==="auto" ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, theme); localStorage.setItem(THEME_ASKED, "1"); }catch{}
+  try{ localStorage.setItem(THEME_KEY, theme); localStorage.setItem(THEME_ASKED, "1"); }catch{}
   applyTheme();
 };
 applyTheme();

@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.12-16** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.12-17** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -182,7 +182,7 @@ To pin a specific version, change `#main` in `docker-compose.yml` to a tag or co
 - **Photos & files:** every intersection bar has a **📎 Files** button (with a count) that shows its photos — tap one for a full-screen viewer — and its documents and other files, which open or download. Anyone who can add devices or edit intersections can upload (drag and drop, choose files, or take a photo on a phone); admins and the uploader can delete. Files are stored in `/data/files`; the size limit is `MAX_UPLOAD_MB` (default 50).
 - **Import from Excel:** **Admin → Settings → Import** reads an Excel workbook (.xlsx) or CSV file — one device per row — matches its columns to the app's fields (guessed from the headings), shows a preview with any rows that will be skipped and why, then adds the devices and any new intersections. Duplicate IPs are skipped (or, if you choose, update the existing device); rows without an IP get the next free IP from their pool. **Download a template** gives a ready-made sheet.
 - **Custom device fields:** admins open **Add device** (or Edit) and click **⚙ Custom fields…** to add extra fields (text, number, date or dropdown, optionally required) to the Add/Edit device form. Each one can be shown as a column, printed and searched.
-- **Dark mode:** **⚙ → Theme** switches between Auto (follows the phone or computer), Light and Dark. The first time someone signs in on a device, they're asked which they prefer. The choice is remembered on each device.
+- **Dark mode:** **⚙ → Theme** switches between Light and Dark. Until someone picks, the app starts in whichever the phone or computer uses. The first time someone signs in on a device, they're asked which they prefer. The choice is remembered on each device.
 - **Print:** click **Print** on an intersection bar for a clean page with your icon and the intersection as its heading. Tick which intersection details and device columns to print; your choices are remembered.
 - Street-sign fonts load from Google Fonts when the browser is online. Without internet access the app works the same, using the system font.
 - **📍 Map** and **Pick on map** open Google Maps in the browser, which needs internet access.
