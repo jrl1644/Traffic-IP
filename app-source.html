@@ -170,6 +170,35 @@
   .tlight{background:#f4f5f2} .tlight b{background:#fff;box-shadow:0 0 0 1px #dfe3df}
   .tdark{background:#141816} .tdark i{background:#2f9a68} .tdark b{background:#1c211f;box-shadow:0 0 0 1px #2d3431}
   .tauto{background:linear-gradient(135deg,#f4f5f2 50%,#141816 50%)} .tauto b{background:rgba(127,127,127,.45)}
+  a.btn{text-decoration:none}
+  body.mobile .ghead .gact .btn{white-space:nowrap;padding-left:10px;padding-right:10px;min-width:0}
+  .filesbtn .fcount{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:999px;background:var(--chip);color:var(--ink);font-size:12px;text-align:center}
+  .dropzone{border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;color:var(--muted);font-size:14px;transition:border-color .15s,background .15s}
+  .dropzone.over{border-color:var(--sign);background:rgba(31,111,74,.06)}
+  body.mobile .dropzone > div:first-child{display:none}
+  .fhead{font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 8px}
+  .fhead span{font-weight:500;margin-left:4px}
+  .photogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+  .pthumb{display:flex;flex-direction:column;gap:4px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--chip);overflow:hidden;cursor:zoom-in;color:var(--ink);font:inherit;text-align:left}
+  .pthumb img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--line)}
+  .pthumb span{font-size:12px;padding:0 8px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .filelist{border:1px solid var(--line);border-radius:10px}
+  .frow{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--line)}
+  .frow:last-child{border-bottom:none}
+  .frow .ficon{font-size:22px;flex:none}
+  .frow .fname{flex:1;min-width:0}
+  .frow .fname a{color:var(--ink);font-weight:500;text-decoration:none;overflow-wrap:anywhere}
+  .frow .fname a:hover{text-decoration:underline}
+  .frow .fname small{display:block;color:var(--muted);font-size:12px}
+  body.mobile .frow{flex-wrap:wrap} body.mobile .frow .btn{border:1px solid var(--line)}
+  #photoScrim{background:rgba(0,0,0,.88);align-items:stretch;justify-content:stretch;padding:0}
+  .photobox{position:relative;display:flex;flex-direction:column;width:100%;height:100%}
+  .photostage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:16px}
+  .photostage img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  .photonav{position:absolute;top:45%;width:48px;height:64px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:36px;line-height:1;cursor:pointer}
+  .photonav.prev{left:12px} .photonav.next{right:12px}
+  .photobar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(0,0,0,.5);color:#eee;font-size:13px}
+  body.mobile .photonav{display:none}
   .printcols{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin:4px 0 10px}
   .printgroup{display:flex;align-items:center;gap:4px;margin:6px 0 2px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
   .printgroup span{flex:1}
@@ -730,6 +759,43 @@
   </div>
 </div>
 
+<!-- Photos & files of one intersection -->
+<div class="scrim" id="filesScrim">
+  <div class="modal" style="max-width:780px">
+    <h2>Photos &amp; files <span id="filesWhat" style="font-weight:500"></span></h2>
+    <div class="dropzone" id="filesUpload">
+      <div>Drop photos, documents or files here, or</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px">
+        <label class="btn primary" style="cursor:pointer">Choose files…<input type="file" id="filesInput" multiple hidden></label>
+        <label class="btn mobileOnly" style="cursor:pointer">📷 Take photo<input type="file" id="filesCam" accept="image/*" capture="environment" hidden></label>
+      </div>
+      <div class="hint" style="margin-top:6px;font-size:12px"><span class="saOnly">Any kind of file, up to the server's size limit.</span><span class="claudeOnly">Photos, PDFs, videos and text files, up to 20 MB each.</span></div>
+    </div>
+    <div class="hint" id="filesNoUpload" style="font-size:14px">Your role can view these but not upload.</div>
+    <div class="hint" id="filesStatus" style="margin:8px 0;min-height:18px"></div>
+    <div id="filesPhotos"></div>
+    <div id="filesDocs"></div>
+    <div class="noDev hidden" id="filesEmpty" style="padding:6px 0">No photos or files yet.</div>
+    <div class="actions"><button type="button" class="btn" id="filesClose">Done</button></div>
+  </div>
+</div>
+<div class="scrim" id="photoScrim">
+  <div class="photobox">
+    <div class="photostage"><img id="photoImg" alt=""></div>
+    <button type="button" class="photonav prev" id="photoPrev" aria-label="Previous photo">‹</button>
+    <button type="button" class="photonav next" id="photoNext" aria-label="Next photo">›</button>
+    <div class="photobar">
+      <span id="photoCap"></span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap">
+        <a class="btn" id="photoOpen" target="_blank" rel="noopener">Full size</a>
+        <a class="btn" id="photoDl">Download</a>
+        <button type="button" class="btn del" id="photoDel">Delete</button>
+        <button type="button" class="btn primary" id="photoClose">Close</button>
+      </span>
+    </div>
+  </div>
+</div>
+
 <!-- Print an intersection -->
 <div class="scrim" id="printScrim">
   <div class="modal" style="max-width:560px">
@@ -794,7 +860,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-1";
+const APP_VERSION = "26.11.12-2";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1026,6 +1092,7 @@ function rebuild(){
     inters.get(key).devices.push(d);
   });
   inters.forEach(i=>i.devices.sort((a,b)=>ipNum(a.ip)-ipNum(b.ip) || String(a.ip).localeCompare(b.ip)));
+  rebuildFiles();
 }
 const sortedInters = () => [...inters.values()].sort((a,b)=>a.key.localeCompare(b.key,undefined,{numeric:true}));
 /* the order intersections are listed in (Sort menu; remembered on this device) */
@@ -1244,6 +1311,7 @@ function render(){
         ${i.gps?`<a class="maplink" href="${mapUrl(i.gps)}" target="_blank" rel="noopener" title="${esc(gpsText(i.gps))} — open in Google Maps">📍 Map</a>`:""}
         <span class="count">${filt && devs.length!==i.devices.length ? `${devs.length} of ${i.devices.length} devices match` : `${i.devices.length} device${i.devices.length===1?"":"s"}`}</span>
         <span class="gact">
+          ${(filesMap.get(i.key)||[]).length || canUploadFiles() ? `<button class="btn ghost filesbtn" data-files="${k}" title="Photos &amp; files">📎 Files${(filesMap.get(i.key)||[]).length ? `<span class="fcount">${(filesMap.get(i.key)||[]).length}</span>` : ""}</button>` : ""}
           <button class="btn ghost printbtn" data-print="${k}" title="Print this intersection">Print</button>
           ${can("devices.add")?`<button class="btn ghost" data-addat="${k}" title="Add a device at this intersection">+ Device</button>`:""}
           ${can("inters.edit")?`<button class="btn ghost" data-editinter="${k}">Edit</button>`:""}
@@ -1308,13 +1376,14 @@ $("#sortSel").onchange = e=>{ sortBy = e.target.value; try{ localStorage.setItem
 
 $("#list").addEventListener("click", e=>{
   if(e.target.closest("a.maplink")) return;   // let the map link open without toggling the card
-  const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-print],[data-mtoggle],[data-toggle]");
+  const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-print],[data-files],[data-mtoggle],[data-toggle]");
   if(!t) return;
   const ds = t.dataset;
   if(ds.edit) return openEdit(devices.find(d=>d.id===ds.edit));
   if(ds.addat) return openEdit(null, ds.addat);
   if(ds.editinter) return openInter(inters.get(ds.editinter));
   if(ds.print) return openPrint(inters.get(ds.print));
+  if(ds.files) return openFiles(inters.get(ds.files));
   if(ds.mtoggle){ const open = !mobOpen.has(ds.mtoggle); open ? mobOpen.add(ds.mtoggle) : mobOpen.delete(ds.mtoggle); t.closest("tr").classList.toggle("mopen", open); t.setAttribute("aria-expanded", open); return; }
   if(ds.addinter) return openInter();
   if(ds.copy){ navigator.clipboard?.writeText(ds.copy).then(()=>toast("Copied "+ds.copy)).catch(()=>{}); return; }
@@ -1583,6 +1652,7 @@ iform.addEventListener("submit", async e=>{
         await db.collection("devices").doc(id).set({...rest, street1:v.street1, street2:v.street2, updated:new Date().toISOString()});
       }
       if(old.docId && old.docId!==interDocId(newKey)) await db.collection("intersections").doc(old.docId).delete();
+      for(const f of (filesMap.get(old.key)||[])){ const {id, ...rest} = f; await db.collection("files").doc(id).set({...rest, inter:newKey, label:interLabel({street1:v.street1, street2:v.street2})}); }
       if(expanded.delete(old.key)) expanded.add(newKey);
     } else if(old && (old.street1!==v.street1 || old.street2!==v.street2)){
       // same intersection, spelling/capitalisation changed: keep devices in step
@@ -1854,12 +1924,16 @@ $("#delInterBtn").onclick = ()=>{ if(editingInterKey) confirmDeleteInter(editing
 $("#delDevBtn").onclick = ()=>{ if(editingId) confirmDeleteDevice(editingId); };
 function confirmDeleteInter(key){
   const i = inters.get(key); if(!i) return;
-  const n = i.devices.length;
+  const n = i.devices.length, nf = (filesMap.get(key)||[]).length;
   openConfirm("Remove intersection?",
-    `Remove <strong>${esc(interLabel(i))}</strong>${n?` and its <strong>${n} device${n===1?"":"s"}</strong>`:""}? This can't be undone.`,
+    `Remove <strong>${esc(interLabel(i))}</strong>${n?` and its <strong>${n} device${n===1?"":"s"}</strong>`:""}${nf?`${n?",":" and"} <strong>${nf} photo/file${nf===1?"":"s"}</strong>`:""}? This can't be undone.`,
     n ? `Remove intersection & ${n} device${n===1?"":"s"}` : "Remove intersection",
     async ()=>{
       for(const d of i.devices) await db.collection("devices").doc(d.id).delete();
+      for(const f of (filesMap.get(key)||[])){
+        if(window.__STANDALONE) await window.__api("DELETE", `/api/files/${encodeURIComponent(f.id)}`).catch(()=>{});
+        else { if(f.assetId) try{ await assetsNS?.delete(f.assetId); }catch{} await db.collection("files").doc(f.id).delete().catch(()=>{}); }
+      }
       if(i.docId) await db.collection("intersections").doc(i.docId).delete();
       closeInter(); toast("Intersection removed");
     }, {typeToConfirm:"REMOVE"});
@@ -1876,7 +1950,7 @@ $("#confirmDel").onclick = async ()=>{
 };
 
 document.addEventListener("keydown", e=>{
-  if(e.key==="Escape"){ if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#cfScrim").classList.contains("open")) return closeCfManager(); if($("#printScrim").classList.contains("open")) return closePrint(); if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#devListScrim").classList.contains("open")) return closeDevList(); if($("#adminScrim").classList.contains("open")) return closeAdmin(); closeEdit(); closeInter(); closePools(); }
+  if(e.key==="Escape"){ if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#photoScrim").classList.contains("open")) return closePhoto(); if($("#filesScrim").classList.contains("open")) return closeFiles(); if($("#cfScrim").classList.contains("open")) return closeCfManager(); if($("#printScrim").classList.contains("open")) return closePrint(); if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#devListScrim").classList.contains("open")) return closeDevList(); if($("#adminScrim").classList.contains("open")) return closeAdmin(); closeEdit(); closeInter(); closePools(); }
   if(e.key==="/" && !["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)){ e.preventDefault(); $("#qi").focus(); }
 });
 ["#editScrim","#interScrim","#delScrim","#poolScrim","#devListScrim","#adminScrim"].forEach(s=>$(s).addEventListener("mousedown",e=>{ if(e.target===$(s)) $(s).classList.remove("open"); }));
@@ -2699,8 +2773,172 @@ $("#impGo").onclick = () => {
 $("#impCancel").onclick = () => { impOpen(); $("#impFile").value = ""; };
 $("#impTemplate").onclick = impTemplate;
 
+/* ---------- photos & files on each intersection ----------
+   Self-hosted: stored by the server (/api/files). claude.ai: stored with the page's assets.
+   Either way, a "files" record per upload says which intersection it belongs to. */
+let fileDocs = [], filesMap = new Map(), assetsNS = null, filesInter = null, photoList = [], photoIdx = 0;
+const isPhoto = f => /^image\//.test(f.type||"");
+const fileUrl = (f, download) => window.__STANDALONE ? `/api/files/${encodeURIComponent(f.id)}${download?"?download=1":""}` : (f.url || (f.assetId ? "/_blob/"+f.assetId : ""));
+const fmtBytes = n => !n ? "" : n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n/1024)} KB` : `${(n/1048576).toFixed(1)} MB`;
+function fileIcon(f){
+  const t = f.type||"", n = (f.name||"").toLowerCase();
+  if(/pdf/.test(t) || n.endsWith(".pdf")) return "📕";
+  if(/^video\//.test(t)) return "🎬";
+  if(/^audio\//.test(t)) return "🎵";
+  if(/sheet|excel|csv/.test(t) || /\.(xlsx?|csv)$/.test(n)) return "📊";
+  if(/word|document|rtf/.test(t) || /\.(docx?|rtf|odt)$/.test(n)) return "📝";
+  if(/zip|compressed|tar/.test(t) || /\.(zip|7z|rar|gz)$/.test(n)) return "🗜";
+  if(/\.(dwg|dxf|vsdx?)$/.test(n)) return "📐";
+  return "📄";
+}
+function canUploadFiles(){
+  if(!db || !shareWrite) return false;
+  if(window.__STANDALONE) return can("inters.edit") || can("devices.add") || can("devices.edit");
+  return !!assetsNS;
+}
+function canDeleteFile(f){
+  if(!db || !shareWrite) return false;
+  if(window.__STANDALONE) return myRole()==="admin" || me.isOwner || f.by===me.id;
+  return !!assetsNS && (canManage() || f.by===me.id);
+}
+function rebuildFiles(){
+  filesMap = new Map();
+  for(const f of fileDocs){ if(!filesMap.has(f.inter)) filesMap.set(f.inter, []); filesMap.get(f.inter).push(f); }
+  filesMap.forEach(l=>l.sort((a,b)=>String(b.uploaded||"").localeCompare(String(a.uploaded||""))));
+}
+function openFiles(i){
+  if(!i) return;
+  filesInter = i.key;
+  $("#filesWhat").textContent = "— " + interLabel(i);
+  $("#filesStatus").textContent = ""; $("#filesStatus").style.color = "";
+  renderFiles();
+  $("#filesScrim").classList.add("open");
+}
+const closeFiles = () => { $("#filesScrim").classList.remove("open"); filesInter = null; };
+function renderFiles(){
+  if(!filesInter) return;
+  const list = filesMap.get(filesInter) || [], up = canUploadFiles();
+  $("#filesUpload").classList.toggle("hidden", !up);
+  $("#filesNoUpload").classList.toggle("hidden", up || !!list.length);
+  const photos = list.filter(isPhoto), docs = list.filter(f=>!isPhoto(f));
+  photoList = photos;
+  const by = f => [fmtBytes(f.size), f.byName ? "by "+f.byName : "", f.uploaded ? fmtDate(f.uploaded) : ""].filter(Boolean).join(" · ");
+  $("#filesPhotos").innerHTML = photos.length ? `<div class="fhead">Photos <span>${photos.length}</span></div><div class="photogrid">${photos.map((f,n)=>`
+    <button type="button" class="pthumb" data-photo="${n}" title="${esc(f.name)} — ${esc(by(f))}"><img loading="lazy" alt="${esc(f.name)}" src="${esc(fileUrl(f))}"><span>${esc(f.name)}</span></button>`).join("")}</div>` : "";
+  $("#filesDocs").innerHTML = docs.length ? `<div class="fhead">Documents &amp; files <span>${docs.length}</span></div><div class="filelist">${docs.map(f=>`
+    <div class="frow"><span class="ficon">${fileIcon(f)}</span><span class="fname"><a href="${esc(fileUrl(f))}" target="_blank" rel="noopener">${esc(f.name)}</a><small>${esc(by(f))}</small></span>
+      <a class="btn ghost" href="${esc(fileUrl(f, true))}" ${window.__STANDALONE ? `download="${esc(f.name)}"` : `target="_blank" rel="noopener"`}>Download</a>
+      ${canDeleteFile(f) ? `<button type="button" class="btn ghost del" data-delfile="${esc(f.id)}">Delete</button>` : ""}</div>`).join("")}</div>` : "";
+  $("#filesEmpty").classList.toggle("hidden", !!list.length);
+}
+/* claude.ai: make big photos small enough to store comfortably (the original stays on your device) */
+async function shrinkPhoto(file){
+  if(window.__STANDALONE || !/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 1.5*1048576) return file;
+  try{
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width*k); c.height = Math.round(bmp.height*k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise(r=>c.toBlob(r, "image/jpeg", 0.85));
+    return blob && blob.size < file.size ? new File([blob], file.name.replace(/\.(png|webp)$/i, ".jpg"), {type:"image/jpeg"}) : file;
+  }catch{ return file; }
+}
+function uploadToServer(file, inter, onProgress){
+  return new Promise((resolve, reject)=>{
+    const x = new XMLHttpRequest();
+    x.open("POST", `/api/files?${new URLSearchParams({inter:inter.key, label:interLabel(inter), name:file.name})}`);
+    x.setRequestHeader("X-Requested-With", "iid");
+    x.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    x.upload.onprogress = e => e.lengthComputable && onProgress(e.loaded / e.total);
+    x.onload = () => { let j = null; try{ j = JSON.parse(x.responseText); }catch{} x.status < 300 ? resolve(j) : reject(new Error(j?.error?.message || `Upload failed (${x.status}).`)); };
+    x.onerror = () => reject(new Error("The upload was interrupted — check the connection and try again."));
+    x.send(file);
+  });
+}
+async function uploadFiles(fileList){
+  const i = inters.get(filesInter); if(!i || !fileList.length) return;
+  if(!canUploadFiles()) return;
+  const st = $("#filesStatus"), files = [...fileList], failed = [];
+  st.style.color = "";
+  for(let n = 0; n < files.length; n++){
+    let f = files[n];
+    const label = files.length > 1 ? `Uploading ${n+1} of ${files.length}: ${f.name}` : `Uploading ${f.name}`;
+    st.textContent = label + "…";
+    try{
+      if(window.__STANDALONE){
+        await uploadToServer(f, i, p => st.textContent = `${label} — ${Math.round(p*100)}%`);
+      } else {
+        f = await shrinkPhoto(f);
+        if(f.size > 20*1048576) throw new Error("Files can be up to 20 MB here.");
+        const a = await assetsNS.upload(f);
+        await db.collection("files").doc().set({inter:i.key, label:interLabel(i), name:f.name, type:f.type || a.contentType || "", size:a.sizeBytes || f.size, assetId:a.id, url:a.url, uploaded:new Date().toISOString(), by:me.id||"", byName:me.name||me.username||""});
+      }
+    }catch(ex){
+      const msg = ex?.message || writeError(ex);
+      failed.push(`${f.name}: ${!window.__STANDALONE && /type|unsupported|content/i.test(msg) ? "this kind of file can't be stored in the claude.ai version (photos, PDFs, videos and text files can) — the self-hosted version takes any file" : msg}`);
+    }
+  }
+  const ok = files.length - failed.length;
+  st.style.color = failed.length ? "var(--danger)" : "";
+  st.textContent = failed.length ? `${ok ? `${ok} uploaded. ` : ""}Couldn't upload ${failed.join("; ")}` : `${ok} file${ok===1?"":"s"} uploaded.`;
+  if(ok) toast(`${ok} file${ok===1?"":"s"} added to ${interLabel(i)}`);
+  $("#filesInput").value = ""; $("#filesCam").value = "";
+}
+async function deleteFile(id){
+  const f = fileDocs.find(x=>x.id===id); if(!f) return;
+  openConfirm(`Delete ${isPhoto(f) ? "photo" : "file"}?`, `Delete <b>${esc(f.name)}</b> from ${esc(f.label || "this intersection")}? This can't be undone.`, "Delete", async ()=>{
+    if(window.__STANDALONE) await window.__api("DELETE", `/api/files/${encodeURIComponent(id)}`);
+    else { if(f.assetId) try{ await assetsNS.delete(f.assetId); }catch(ex){ if(!/not.?found|404/i.test(String(ex?.message||ex?.code||""))) throw {userMessage:"Only the person who uploaded it, or an editor, can delete this file."}; } await db.collection("files").doc(id).delete(); }
+    if($("#photoScrim").classList.contains("open")) closePhoto();
+    toast("Deleted");
+  });
+}
+/* full-size photo viewer with previous / next */
+function showPhoto(n){
+  if(!photoList.length) return;
+  photoIdx = (n + photoList.length) % photoList.length;
+  const f = photoList[photoIdx];
+  $("#photoImg").src = fileUrl(f); $("#photoImg").alt = f.name;
+  $("#photoCap").textContent = `${f.name} · ${[fmtBytes(f.size), f.byName ? "by "+f.byName : "", f.uploaded ? fmtDate(f.uploaded) : ""].filter(Boolean).join(" · ")} · ${photoIdx+1} of ${photoList.length}`;
+  $("#photoOpen").href = fileUrl(f); $("#photoDl").href = fileUrl(f, true);
+  if(window.__STANDALONE) $("#photoDl").setAttribute("download", f.name); else $("#photoDl").removeAttribute("download");
+  $("#photoDel").classList.toggle("hidden", !canDeleteFile(f)); $("#photoDel").dataset.delfile = f.id;
+  $("#photoPrev").classList.toggle("hidden", photoList.length < 2); $("#photoNext").classList.toggle("hidden", photoList.length < 2);
+  $("#photoScrim").classList.add("open");
+}
+const closePhoto = () => { $("#photoScrim").classList.remove("open"); $("#photoImg").src = ""; };
+$("#filesClose").onclick = closeFiles;
+$("#filesScrim").addEventListener("click", e=>{
+  if(e.target.id==="filesScrim") return closeFiles();
+  const t = e.target.closest("[data-photo],[data-delfile]"); if(!t) return;
+  if(t.dataset.photo) return showPhoto(+t.dataset.photo);
+  if(t.dataset.delfile) return deleteFile(t.dataset.delfile);
+});
+$("#filesInput").addEventListener("change", e=>uploadFiles(e.target.files));
+$("#filesCam").addEventListener("change", e=>uploadFiles(e.target.files));
+{
+  const dz = $("#filesUpload");
+  ["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.remove("over"); }));
+  dz.addEventListener("drop", e=>uploadFiles(e.dataTransfer?.files || []));
+}
+$("#photoClose").onclick = closePhoto;
+$("#photoPrev").onclick = ()=>showPhoto(photoIdx-1);
+$("#photoNext").onclick = ()=>showPhoto(photoIdx+1);
+$("#photoDel").onclick = e=>deleteFile(e.currentTarget.dataset.delfile);
+$("#photoScrim").addEventListener("click", e=>{ if(e.target.id==="photoScrim" || e.target.classList.contains("photostage")) closePhoto(); });
+document.addEventListener("keydown", e=>{
+  if(!$("#photoScrim").classList.contains("open") || $("#delScrim").classList.contains("open")) return;
+  if(e.key==="ArrowLeft") showPhoto(photoIdx-1); else if(e.key==="ArrowRight") showPhoto(photoIdx+1);
+});
+{ // swipe between photos on phones
+  let sx = null;
+  $("#photoScrim").addEventListener("touchstart", e=>{ sx = e.touches[0].clientX; }, {passive:true});
+  $("#photoScrim").addEventListener("touchend", e=>{ if(sx===null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if(Math.abs(dx) > 50) showPhoto(photoIdx + (dx < 0 ? 1 : -1)); }, {passive:true});
+}
+
 /* ---------- backup & restore (all data) ---------- */
-const BACKUP_COLLS = ["intersections","devices","pools","deviceOptions","members"];
+const BACKUP_COLLS = ["intersections","devices","pools","deviceOptions","members","files"];
 const ADMIN_DOCS = ["config","branding","settings","fields"];
 /* today's date where you are (not UTC), e.g. 2026-11-11 */
 const today = () => { const d = new Date(), z = n => String(n).padStart(2,"0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; };
@@ -2768,7 +3006,7 @@ $("#resetDbBtn").onclick = ()=>{
 };
 async function resetAll(){
   const all = await readAll();
-  return restoreAll({collections:{intersections:{}, devices:{}, pools:{}, deviceOptions:{}, members:all.members||{}, admin: all.admin?.config ? {config:all.admin.config} : {}}}, true);
+  return restoreAll({collections:{intersections:{}, devices:{}, pools:{}, deviceOptions:{}, files:{}, members:all.members||{}, admin: all.admin?.config ? {config:all.admin.config} : {}}}, true);
 }
 async function restoreAll(backup, isReset){
   const st = $("#bkStatus"), c = backup.collections;
@@ -3043,12 +3281,14 @@ function update(){
   if($("#poolScrim").classList.contains("open")){ renderPools(); renderPoolTypes(); }
   if($("#devListScrim").classList.contains("open")) renderDevList();
   if($("#editScrim").classList.contains("open")) fillDevSelect($("#devSel").value);
+  if($("#filesScrim").classList.contains("open")) renderFiles();
 }
 update();
 (async ()=>{
   try{ db = await window.claude?.use("db"); }catch{ db = null; }
   if(!db){ shareWrite=false; applyWriteMode(); setStatus("Your saved inventory can't be reached in this view. Open the page on claude.ai while signed in to view and edit it.", true); render(); return; }
   try{
+    if(!window.__STANDALONE) window.claude.use("assets").then(a=>{ assetsNS = a || null; render(); if($("#filesScrim").classList.contains("open")) renderFiles(); }).catch(()=>{});
     userNS = await window.claude.use("user");
     if(userNS){
       const c = await userNS.can("data.write"); if(c===false) shareWrite=false;
@@ -3116,6 +3356,10 @@ update();
     if(!snap.metadata.fromCache) gotPool=true;
     settle(); update();
   }, onErr);
+  db.collection("files").onSnapshot(snap=>{
+    fileDocs = snap.docs.map(s=>({id:s.id, ...s.data()})).filter(f=>f.inter && f.name);
+    update();
+  }, ()=>{});
   db.collection("intersections").onSnapshot(snap=>{
     interDocs = snap.docs.map(s=>({id:s.id, ...s.data()}));
     if(!snap.metadata.fromCache) gotInt=true;

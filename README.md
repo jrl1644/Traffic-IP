@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.12-1** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.12-2** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -55,6 +55,7 @@ Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=Experime
 | `SESSION_DAYS` | `14` | How long a sign-in lasts. |
 | `PING_CONCURRENCY` | `16` | How many devices the Ping check pings at the same time. |
 | `CHANGELOG_DAYS` | `365` | How many days Admin → Logs keeps entries. |
+| `MAX_UPLOAD_MB` | `50` | Largest photo or file that can be attached to an intersection. |
 | `TZ` | — | Time zone for log timestamps. |
 
 ---
@@ -107,6 +108,7 @@ Optional settings: `PING_CONCURRENCY` (default `16`) is how many devices are pin
 - Everything lives in a SQLite database, `/data/traffic-ip.sqlite` (in the `traffic-ip-data` volume). Each change is saved the moment it's made; a crash or power cut can't leave it half-written.
 - Device IPs are indexed, so the duplicate-IP check stays instant even with hundreds of thousands of devices.
 - **Upgrading from an older version** (which used `/data/db.json`): on first start the old file is imported automatically, including accounts and sign-ins, and kept as `/data/db.json.imported`.
+- Photos and files attached to intersections are kept in `/data/files` (same volume). The downloadable backup lists them but doesn't contain the files themselves — keep a copy of the volume, or of `/data/files`, too.
 - Each time the server starts, it saves a copy of the database to `/data/backups/` and keeps the last 20 copies.
 - Admins can download or restore a full backup from **Admin → Settings → Backup & Restore**. Before a restore or a reset, the current data is saved to `/data/backups/before-restore-….json` or `before-reset-….json`.
 
@@ -173,6 +175,7 @@ To pin a specific version, change `#main` in `docker-compose.yml` to a tag or co
 
 ## Notes
 
+- **Photos & files:** every intersection bar has a **📎 Files** button (with a count) that shows its photos — tap one for a full-screen viewer — and its documents and other files, which open or download. Anyone who can add devices or edit intersections can upload (drag and drop, choose files, or take a photo on a phone); admins and the uploader can delete. Files are stored in `/data/files`; the size limit is `MAX_UPLOAD_MB` (default 50).
 - **Import from Excel:** **Admin → Settings → Import** reads an Excel workbook (.xlsx) or CSV file — one device per row — matches its columns to the app's fields (guessed from the headings), shows a preview with any rows that will be skipped and why, then adds the devices and any new intersections. Duplicate IPs are skipped (or, if you choose, update the existing device); rows without an IP get the next free IP from their pool. **Download a template** gives a ready-made sheet.
 - **Custom device fields:** admins open **Add device** (or Edit) and click **⚙ Custom fields…** to add extra fields (text, number, date or dropdown, optionally required) to the Add/Edit device form. Each one can be shown as a column, printed and searched.
 - **Dark mode:** the theme button in the header switches between Auto (follows the phone or computer), Light and Dark. The first time someone signs in on a device, they're asked which they prefer. The choice is remembered on each device.

@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.12-1";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.12-2";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -20,12 +20,15 @@ const DB_PATH = path.join(DATA_DIR, "traffic-ip.sqlite");
 const LEGACY_JSON = path.join(DATA_DIR, "db.json");            // storage used before v26.11.11-16; imported once
 const BACKUP_DIR = path.join(DATA_DIR, "backups");
 const MAX_BODY = 512 * 1024;
+const FILES_DIR = path.join(DATA_DIR, "files");                 // photos and documents attached to intersections
+const MAX_UPLOAD = Math.max(1, parseInt(process.env.MAX_UPLOAD_MB || "50", 10)) * 1024 * 1024;
 const CHANGELOG_DAYS = Math.max(1, parseInt(process.env.CHANGELOG_DAYS || "365", 10));
 
 /* ------------------------------------------------------------------ storage (SQLite)
    One row per record (intersection, device, pool…), stored as JSON. Device IPs are indexed,
    so the duplicate-IP check stays instant at any size. Every write is saved immediately and safely. */
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
+fs.mkdirSync(FILES_DIR, { recursive: true });
 const db = new DatabaseSync(DB_PATH);
 db.exec(`
   PRAGMA journal_mode = WAL;
@@ -155,6 +158,7 @@ function describeChange(c, before, after, id) {
     case "deviceOptions": what = `“${d.name || ""}” in the Device list`; break;
     case "admin": what = ({ config: "role privileges", branding: "custom icon", settings: "settings", fields: "custom device fields" })[id] || "admin settings"; break;
     case "members": what = `member ${d.name || d.email || ""}`; break;
+    case "files": what = `file “${d.name || ""}”${d.label ? ` at ${d.label}` : ""}`; break;
     default: what = `${c} record`;
   }
   if (c === "admin" && id === "fields") {
@@ -198,6 +202,39 @@ function exportCollections() {
 function shutdown() { try { db.close(); } catch {} process.exit(0); }
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
+
+/* ------------------------------------------------------------------ files */
+function cleanFileName(n) {
+  const t = String(n || "").normalize("NFC").replace(/[\u0000-\u001f\u007f/\\]+/g, " ").replace(/\s+/g, " ").trim().replace(/^\.+/, "");
+  return (t || "file").slice(0, 200);
+}
+const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+// shown in the browser: photos, PDFs, videos, plain text. Everything else is downloaded, never run.
+const INLINE_TYPES = /^(image\/(jpeg|png|gif|webp|avif|bmp)|application\/pdf|video\/(mp4|webm|quicktime)|audio\/(mpeg|mp4|wav|ogg)|text\/plain)$/;
+function serveFile(req, res, file, meta, forceDownload) {
+  const stat = fs.statSync(file), inline = !forceDownload && INLINE_TYPES.test(meta.type);
+  const type = inline ? meta.type + (meta.type === "text/plain" ? "; charset=utf-8" : "") : (/(html|xml|svg|javascript)/i.test(meta.type) ? "application/octet-stream" : meta.type || "application/octet-stream");
+  const ascii = meta.name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  const headers = {
+    "Content-Type": type,
+    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(meta.name)}`,
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'",
+    "Cache-Control": "private, max-age=86400",
+    "Accept-Ranges": "bytes",
+  };
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+  if (range && (range[1] || range[2])) {
+    let start = range[1] ? +range[1] : stat.size - +range[2], end = range[1] && range[2] ? Math.min(+range[2], stat.size - 1) : stat.size - 1;
+    if (start < 0) start = 0;
+    if (start >= stat.size || start > end) { res.writeHead(416, { "Content-Range": `bytes */${stat.size}` }); return res.end(); }
+    res.writeHead(206, { ...headers, "Content-Range": `bytes ${start}-${end}/${stat.size}`, "Content-Length": end - start + 1 });
+    return fs.createReadStream(file, { start, end }).pipe(res);
+  }
+  res.writeHead(200, { ...headers, "Content-Length": stat.size });
+  if (req.method === "HEAD") return res.end();
+  fs.createReadStream(file).pipe(res);
+}
 
 /* ------------------------------------------------------------------ roles */
 const PERMS = ["devices.add","devices.edit","devices.remove","inters.add","inters.edit","inters.remove","devlist.manage","pools.manage"];
@@ -342,6 +379,8 @@ function writeAllowed(u, c, id, kind /* create|update|delete */) {
     pools: "pools.manage", deviceOptions: "devlist.manage",
   };
   if (c === "admin" || c === "members") return userRole(u) === "admin";
+  // file records are created and removed through /api/files; the only edit is moving them when an intersection is renamed
+  if (c === "files") return kind === "update" && can(u, "inters.edit");
   if (c === "locks") return canWriteAny(u);
   const m = map[c];
   if (!m) return userRole(u) === "admin";
@@ -571,6 +610,50 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    /* --- photos & files attached to intersections --- */
+    if (p === "/api/files" && req.method === "POST") {
+      if (!(can(u, "inters.edit") || can(u, "devices.add") || can(u, "devices.edit"))) return err(res, 403, "forbidden", "Your role can't upload files.");
+      const inter = String(url.searchParams.get("inter") || "").slice(0, 400), label = String(url.searchParams.get("label") || "").slice(0, 400);
+      const name = cleanFileName(url.searchParams.get("name"));
+      if (!inter) return err(res, 400, "invalid_argument", "Which intersection is this for?");
+      const len = parseInt(req.headers["content-length"] || "0", 10);
+      if (len > MAX_UPLOAD) return err(res, 413, "too_large", `Files can be up to ${Math.round(MAX_UPLOAD / 1048576)} MB.`);
+      const id = "f_" + crypto.randomBytes(12).toString("hex"), tmp = path.join(FILES_DIR, id + ".part");
+      const size = await new Promise(resolve => {
+        let n = 0, done = false; const out = fs.createWriteStream(tmp);
+        const fail = () => { if (done) return; done = true; out.destroy(); fs.rm(tmp, { force: true }, () => {}); resolve(-1); };
+        req.on("data", ch => { n += ch.length; if (n > MAX_UPLOAD) { fail(); req.destroy(); } });
+        req.on("error", fail); req.on("aborted", fail);
+        out.on("error", fail);
+        out.on("finish", () => { if (!done) { done = true; resolve(n); } });
+        req.pipe(out);
+      });
+      if (size < 0) return err(res, 413, "too_large", `Files can be up to ${Math.round(MAX_UPLOAD / 1048576)} MB.`);
+      if (size === 0) { fs.rmSync(tmp, { force: true }); return err(res, 400, "invalid_argument", "That file is empty."); }
+      fs.renameSync(tmp, path.join(FILES_DIR, id));
+      const type = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase().slice(0, 100) || "application/octet-stream";
+      const meta = { inter, label, name, type, size, uploaded: new Date().toISOString(), by: u.id, byName: u.name || u.username };
+      putDoc("files", id, meta);
+      logChange(u, "create", "files", id, `Uploaded ${/^image\//.test(type) ? "photo" : "file"} “${name}”${label ? ` to ${label}` : ""} (${fmtSize(size)})`);
+      broadcast({ type: "change", coll: "files", id, data: meta });
+      return send(res, 200, { id, ...meta });
+    }
+    const fileM = p.match(/^\/api\/files\/(f_[a-f0-9]{24})$/);
+    if (fileM) {
+      const id = fileM[1], meta = getDoc("files", id), file = path.join(FILES_DIR, id);
+      if (req.method === "DELETE") {
+        if (!meta) return err(res, 404, "not_found", "That file is already gone.");
+        if (!(userRole(u) === "admin" || meta.by === u.id)) return err(res, 403, "forbidden", "Only an admin or the person who uploaded it can delete this file.");
+        delDoc("files", id); fs.rm(file, { force: true }, () => {});
+        logChange(u, "delete", "files", id, `Deleted ${/^image\//.test(meta.type) ? "photo" : "file"} “${meta.name}”${meta.label ? ` from ${meta.label}` : ""}`, meta, null);
+        broadcast({ type: "change", coll: "files", id, data: null });
+        return send(res, 200, { ok: true });
+      }
+      if (req.method !== "GET") return err(res, 405, "invalid_argument", "Method not allowed.");
+      if (!meta || !fs.existsSync(file)) return err(res, 404, "not_found", "That file isn't on the server any more.");
+      return serveFile(req, res, file, meta, url.searchParams.get("download") === "1");
+    }
+
     /* --- change log (admins): newest first, ?q= search, ?before=<id> for the next page --- */
     if (p === "/api/changelog" && req.method === "GET") {
       if (userRole(u) !== "admin") return err(res, 403, "forbidden", "Only admins can see the logs.");
@@ -619,6 +702,8 @@ const server = http.createServer(async (req, res) => {
       fs.writeFileSync(path.join(BACKUP_DIR, `before-${isReset ? "reset" : "restore"}-${stamp}.json`), JSON.stringify({ app: "Traffic-IP", version: VERSION, exported: new Date().toISOString(), collections: exportCollections() }));
       tx(() => { Q.clearDocs.run(); for (const [name, docs] of Object.entries(next)) for (const [id, d] of Object.entries(docs)) putDoc(name, id, d); });
       if (isReset) {
+        // a clean start: the uploaded files move into the backups folder (not deleted outright)
+        try { const keep = path.join(BACKUP_DIR, `files-before-reset-${stamp}`); if (fs.readdirSync(FILES_DIR).length) { fs.renameSync(FILES_DIR, keep); fs.mkdirSync(FILES_DIR, { recursive: true }); } } catch (e) { console.error("moving files on reset:", e.message); }
         logChange(u, "restore", null, null, `Reset the database — clean start (deleted ${old.devices} device${old.devices === 1 ? "" : "s"} and ${old.intersections} intersection${old.intersections === 1 ? "" : "s"}; a copy was saved on the server)`);
         console.log(`Database reset by ${u.username} (${old.devices} devices, ${old.intersections} intersections removed; copy in backups/before-reset-${stamp}.json).`);
       } else {
@@ -664,7 +749,8 @@ const server = http.createServer(async (req, res) => {
       if (req.method === "PUT") {
         const before = getDoc(c, id), exists = before !== undefined;
         if (!writeAllowed(u, c, id, exists ? "update" : "create")) return err(res, 403, "forbidden", "Your role doesn't allow that change.");
-        const data = await readBody(req);
+        const raw = await readBody(req);
+        const data = c === "files" ? { ...before, inter: String(raw.inter || before.inter).slice(0, 400), label: String(raw.label || before.label || "").slice(0, 400) } : raw;
         const v = validate(c, id, data);
         if (v) return v.conflict ? err(res, 409, "conflict", v.conflict) : err(res, 400, "invalid_argument", v);
         putDoc(c, id, data);
