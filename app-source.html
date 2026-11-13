@@ -689,13 +689,13 @@
 
     <section class="tabpane hidden" data-pane="settings">
       <div class="subtabs" role="tablist">
-        <button type="button" class="subtab active" data-sub="icon">Custom icon</button>
+        <button type="button" class="subtab active" data-sub="icon">Customization</button>
         <button type="button" class="subtab saOnly" data-sub="ping">Ping check</button>
         <button type="button" class="subtab" data-sub="import">Import</button>
         <button type="button" class="subtab" data-sub="backup">Backup &amp; Restore</button>
       </div>
       <div class="subpane" data-subpane="icon">
-      <h3 class="settinghead">Custom icon</h3>
+      <h3 class="settinghead">Customization</h3>
       <p class="hint" style="margin:0 0 10px;font-size:14px">Your icon fills the top-left corner of the header for everyone. In the self-hosted version it's also shown on the sign-in screen and used as the app's icon for browser tabs, bookmarks and "Add to Home Screen". It's resized and cropped automatically: square to wide images fill the space; taller or extra-wide ones are trimmed from the center. PNG, JPG, SVG or WebP.</p>
       <div class="logobox" id="logoPreview"><span class="none">No icon yet</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -911,7 +911,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-17";
+const APP_VERSION = "26.11.12-18";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);

@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.12-17** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.12-18** (versions are `YY.MM.DD-revision` and shown under the app name in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -73,7 +73,7 @@ Open **⚙ → Admin** (Admins only). Everything that used to be a header button
 - **Accounts & roles:** create accounts with a temporary password, set each person's role, reset passwords, and disable or delete accounts. Disabling or deleting someone signs them out straight away.
 - **Role privileges:** tick what **Technicians** and **Viewers** may do (add/edit/remove devices and intersections, manage the Device list and address pools). Admins can always do everything.
 - **Settings → Backup & Restore:** download all data as one `.json` file, or restore a backup (replaces all data; type RESTORE to confirm). **Reset database** gives a clean start: it deletes all intersections, devices, address pools and the Device list, and clears the custom icon and settings (type RESET to confirm). Accounts and role privileges are kept. A copy of the deleted data is saved in `/data/backups/before-reset-….json`. User accounts and passwords aren't included and aren't changed. Before a restore, the server saves a copy of the replaced data in `/data/backups/before-restore-….json`. Backups from the claude.ai version of the app can be restored here too.
-- **Settings → Custom icon:** upload your organization's logo or a photo (PNG, JPG, SVG or WebP). It's resized and cropped automatically to fill the top-left corner of the header, shown on the sign-in screen, and used as the app's icon for browser tabs, bookmarks and iPhone/Android **Add to Home Screen** (a built-in Traffic-IP icon is used until you upload one).
+- **Settings → Customization:** upload your organization's logo or a photo (PNG, JPG, SVG or WebP). It's resized and cropped automatically to fill the top-left corner of the header, shown on the sign-in screen, and used as the app's icon for browser tabs, bookmarks and iPhone/Android **Add to Home Screen** (a built-in Traffic-IP icon is used until you upload one).
 
 Everyone can use **⚙ → Account** to change their own password or sign out.
 
