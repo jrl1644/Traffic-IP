@@ -75,6 +75,7 @@
     // organization logo (public), filling the top of the sign-in card
     fetch("/api/branding").then(r => r.json()).then(b => {
       if (b && b.logo) { host.querySelector(".logo img").src = b.logo; host.classList.add("haslogo"); }
+      if (b && /^#[0-9a-f]{6}$/i.test(b.bannerColor || "")) host.style.setProperty("--sign", b.bannerColor);   // the admin's banner color
     }).catch(() => {});
     document.body ? mount() : document.addEventListener("DOMContentLoaded", mount);
     const f = host.querySelector("form"), errEl = host.querySelector(".err");

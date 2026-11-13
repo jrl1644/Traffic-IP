@@ -27,7 +27,7 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45}
-  header{background:var(--sign);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header{background:var(--banner, var(--sign));color:var(--banner-ink, #fff);padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   header h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.2px;flex:1;min-width:220px}
   header h1 .ver{font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:0;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:0 6px;margin-right:4px}
   header h1 small{display:block;font-weight:400;font-size:9px;opacity:.85;margin-top:1px}
@@ -317,7 +317,7 @@
   .pingbanner .sp{flex:1}
   .pinglegend .pl-when{color:var(--muted)}
   body.mobile .pinglegend{flex-basis:100%;border-radius:10px}
-  .logobox{display:flex;align-items:stretch;height:84px;border-radius:10px;background:var(--sign);margin-bottom:12px;overflow:hidden;color:#fff}
+  .logobox{display:flex;align-items:stretch;height:84px;border-radius:10px;background:var(--banner, var(--sign));margin-bottom:12px;overflow:hidden;color:#fff}
   .logobox img{height:100%;width:auto;object-fit:cover;display:block}
   .logobox .fake{display:flex;align-items:center;padding:0 16px;font-weight:700;font-size:18px}
   .logobox .none{display:flex;align-items:center;padding:0 16px;color:rgba(255,255,255,.75);font-size:14px}
@@ -391,6 +391,14 @@
   .typechips input{width:auto;margin:0}
   .typechips small{color:var(--muted)}
   header .btn{border-color:rgba(255,255,255,.4)}
+  /* light banner colors get dark text */
+  html.lightbanner header h1 .ver{background:rgba(0,0,0,.08);border-color:rgba(0,0,0,.25)}
+  html.lightbanner header .btn{border-color:rgba(0,0,0,.2)}
+  .swatches{display:flex;flex-wrap:wrap;gap:8px}
+  .swatch{width:34px;height:34px;border-radius:9px;border:2px solid var(--panel);box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0}
+  .swatch.on{box-shadow:0 0 0 2px var(--ink)}
+  .colorpick{display:inline-flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+  .colorpick input{width:44px;height:34px;padding:0;border:1px solid var(--line);border-radius:8px;background:none;cursor:pointer;min-height:0}
 </style>
 <script>try{var t=localStorage.getItem("traffic-ip-theme");if(t!=="dark"&&t!=="light")t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 </head>
@@ -702,6 +710,15 @@
         <label class="btn" id="logoPick" style="cursor:pointer">Upload icon…<input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></label>
         <button type="button" class="btn ghost del" id="logoRemove">Remove icon</button>
       </div>
+
+      <h3 class="settinghead" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">Banner color</h3>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">The color of the bar across the top of the app<span class="saOnly"> and the sign-in screen</span>, for everyone. Text on it turns dark automatically on light colors.</p>
+      <div class="swatches" id="bannerSwatches"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px">
+        <label class="colorpick">Pick any color <input type="color" id="bannerColor" value="#1f6f4a"></label>
+        <span class="hint" id="bannerHex" style="font-family:var(--mono)"></span>
+        <button type="button" class="btn ghost" id="bannerReset">Use default</button>
+      </div>
       </div>
 
       <div class="subpane hidden" data-subpane="ping">
@@ -911,7 +928,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-18";
+const APP_VERSION = "26.11.12-19";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -2354,9 +2371,42 @@ async function renderAdmin(){
     PERMS.map(([k,label])=>`<tr><td>${esc(label)}</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" data-role="${r}" data-perm="${k}" ${roleCfg.roles[r].perms[k]?"checked":""} ${(r==="admin"||ro)?"disabled":""}></td>`).join("")}</tr>`).join("") +
     `<tr><td>Open this Admin menu</td>${ROLE_ORDER.map(r=>`<td><input type="checkbox" ${r==="admin"?"checked":""} disabled></td>`).join("")}</tr></tbody>`;
 }
-function openAdmin(){ showLogo(); showBackupControls(); showPingSettings(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
+function openAdmin(){ showLogo(); showBannerControls(); showBackupControls(); showPingSettings(); $("#aerr").textContent=""; setTab(adminTab); $("#adminScrim").classList.add("open"); renderAdmin(); }
 /* ---------- branding: custom logo (stored small, as an image inside the data) ---------- */
 let brandLogo = "";
+/* ---------- banner color (Admin → Settings → Customization) ---------- */
+let brandDoc = {};                       // the whole admin/branding record, so saving one part keeps the others
+const DEFAULT_BANNER = "#1f6f4a";
+const BANNER_PRESETS = ["#1f6f4a","#0b5394","#003f87","#1c2b3a","#5b2a86","#a61b29","#c2410c","#b7791f","#0f766e","#374151","#111111","#e5e7eb"];
+const validHex = c => /^#[0-9a-f]{6}$/i.test(String(c||""));
+function bannerInk(hex){   // dark text on light colors, white on dark (WCAG relative luminance)
+  const lin = v => { v /= 255; return v <= .03928 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4); };
+  const [r,g,b] = [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
+  return (.2126*lin(r) + .7152*lin(g) + .0722*lin(b)) > .36 ? "#111" : "#fff";
+}
+function applyBanner(c){
+  const root = document.documentElement, ok = validHex(c);
+  if(ok){ root.style.setProperty("--banner", c); root.style.setProperty("--banner-ink", bannerInk(c)); }
+  else { root.style.removeProperty("--banner"); root.style.removeProperty("--banner-ink"); }
+  root.classList.toggle("lightbanner", ok && bannerInk(c)==="#111");
+  const meta = document.querySelector('meta[name="theme-color"]'); if(meta) meta.content = ok ? c : DEFAULT_BANNER;
+}
+function showBannerControls(){
+  const cur = validHex(brandDoc.bannerColor) ? brandDoc.bannerColor.toLowerCase() : "";
+  $("#bannerSwatches").innerHTML = BANNER_PRESETS.map(c=>`<button type="button" class="swatch ${cur===c || (!cur && c===DEFAULT_BANNER) ? "on" : ""}" data-banner="${c}" style="background:${c}" title="${c}${c===DEFAULT_BANNER ? " (default)" : ""}" aria-label="Banner color ${c}"></button>`).join("");
+  $("#bannerColor").value = cur || DEFAULT_BANNER;
+  $("#bannerHex").textContent = cur ? cur.toUpperCase() : "Default green";
+  const ro = !canManage(); ["#bannerColor","#bannerReset"].forEach(x=>$(x).disabled = ro); $("#bannerSwatches").querySelectorAll("button").forEach(b=>b.disabled = ro);
+}
+async function saveBanner(c){
+  applyBanner(c);
+  try{ await db.doc("admin/branding").set({...brandDoc, bannerColor: c || "", updated:new Date().toISOString()}); brandDoc = {...brandDoc, bannerColor: c || ""}; showBannerControls(); toast(c ? "Banner color saved" : "Banner color back to the default"); }
+  catch(ex){ applyBanner(brandDoc.bannerColor); $("#aerr").textContent = writeError(ex); }
+}
+$("#bannerSwatches").addEventListener("click", e=>{ const b = e.target.closest("[data-banner]"); if(b) saveBanner(b.dataset.banner===DEFAULT_BANNER ? "" : b.dataset.banner); });
+$("#bannerColor").addEventListener("input", e=>{ applyBanner(e.target.value); $("#bannerHex").textContent = e.target.value.toUpperCase(); });   // live preview
+$("#bannerColor").addEventListener("change", e=>saveBanner(e.target.value.toLowerCase()));
+$("#bannerReset").onclick = ()=>saveBanner("");
 const LOGO_MIN_RATIO = 1, LOGO_MAX_RATIO = 4;     // square up to 4× as wide as the header is tall
 function sizeLogo(){
   const slot = $("#brandSlot"), img = $("#brandLogo"), header = document.querySelector("header");
@@ -2445,12 +2495,12 @@ $("#logoFile").addEventListener("change", async e=>{
   try{
     const data = await shrinkLogo(f);
     const icon = await makeAppIcon(data);
-    await db.doc("admin/branding").set({logo:data, icon, updated:new Date().toISOString()});
+    await db.doc("admin/branding").set({...brandDoc, logo:data, icon, updated:new Date().toISOString()});
     brandLogo = data; showLogo(); toast("Custom icon updated");
   }catch(ex){ $("#aerr").textContent = ex?.message && !ex.code ? ex.message : (ex?.code==="invalid_argument" && !window.__STANDALONE ? "Only the owner and Editors can change the custom icon." : writeError(ex)); }
 });
 $("#logoRemove").onclick = ()=> openConfirm("Remove the custom icon?", "The header will show just the app name again.", "Remove icon",
-  async ()=>{ await db.doc("admin/branding").set({logo:"", icon:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Custom icon removed"); });
+  async ()=>{ await db.doc("admin/branding").set({...brandDoc, logo:"", icon:"", updated:new Date().toISOString()}); brandLogo = ""; showLogo(); toast("Custom icon removed"); });
 
 /* ---------- ping check ---------- */
 let pingCfg = {enabled:false, intervalSec:60, timeoutSec:1};
@@ -3466,6 +3516,8 @@ update();
   let iconBackfilled = false;
   db.doc("admin/branding").onSnapshot(async snap=>{
     const b = snap.exists ? snap.data() : {};
+    brandDoc = {...b};
+    applyBanner(b.bannerColor); if($("#adminScrim").classList.contains("open")) showBannerControls();
     brandLogo = (typeof b.logo==="string" && b.logo.startsWith("data:image/")) ? b.logo : ""; showLogo();
     refreshAppIcons(brandLogo ? b.updated : "");
     // an icon uploaded before app icons existed gets its square version made once, by an admin

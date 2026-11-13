@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.12-18";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.12-19";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -116,7 +116,7 @@ function saveUser(u) { const { _token, ...data } = u; Q.putUser.run(data.id, dat
 /* ------------------------------------------------------------------ change log
    Who changed what, and when. Kept for CHANGELOG_DAYS (default 365). Images (logos) are left out. */
 const FIELD_LABEL = { ip: "IP", name: "Device", type: "Type", mac: "MAC", notes: "Notes", street1: "Street 1", street2: "Street 2",
-  number: "Intersection ID", atmsId: "ATMS Station ID", atmsPort: "ATMS Port", lat: "Latitude", lon: "Longitude", range: "IP range", types: "Device types" };
+  number: "Intersection ID", atmsId: "ATMS Station ID", atmsPort: "ATMS Port", bannerColor: "Banner color", lat: "Latitude", lon: "Longitude", range: "IP range", types: "Device types" };
 const SKIP_FIELDS = new Set(["created", "updated", "id"]);
 const where = d => d && (d.street1 || d.street2) ? ` at ${d.street1 || "?"} & ${d.street2 || "?"}` : "";
 const show = v => v === undefined || v === null || v === "" ? "(blank)" : Array.isArray(v) ? v.join(", ") : typeof v === "object" ? "…" : String(v).length > 60 ? String(v).slice(0, 57) + "…" : String(v);
@@ -450,6 +450,7 @@ function serveStatic(req, res, urlPath) {
    The custom icon's square version (made in the browser at upload) if there is one, otherwise the built-in icon. */
 const ICON_PATHS = new Set(["/favicon.ico", "/favicon.png", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png", "/icon-192.png", "/icon-512.png"]);
 const DEFAULT_ICON = fs.readFileSync(path.join(PUBLIC_DIR, "default-icon.png"));
+const bannerColor = () => { const c = adminDoc("branding").bannerColor; return /^#[0-9a-f]{6}$/i.test(String(c || "")) ? c : ""; };
 function currentIcon() {
   const b = adminDoc("branding");
   const m = typeof b.icon === "string" && b.icon.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
@@ -466,7 +467,7 @@ function serveManifest(req, res) {
   const v = encodeURIComponent(currentIcon().tag), type = currentIcon().type;
   const body = JSON.stringify({
     name: "Traffic-IP", short_name: "Traffic-IP", start_url: "/", scope: "/", display: "standalone",
-    background_color: "#f4f5f2", theme_color: "#1f6f4a",
+    background_color: "#f4f5f2", theme_color: bannerColor() || "#1f6f4a",
     icons: [{ src: `/icon-192.png?v=${v}`, sizes: "192x192", type, purpose: "any" }, { src: `/icon-512.png?v=${v}`, sizes: "512x512", type, purpose: "any" }],
   });
   res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" });
@@ -485,7 +486,7 @@ const server = http.createServer(async (req, res) => {
     // the logo is public so the sign-in screen can show it (nothing else is readable before signing in)
     if (p === "/api/branding" && req.method === "GET") {
       const logo = adminDoc("branding").logo;
-      return send(res, 200, { logo: typeof logo === "string" && logo.startsWith("data:image/") ? logo : "" });
+      return send(res, 200, { logo: typeof logo === "string" && logo.startsWith("data:image/") ? logo : "", bannerColor: bannerColor() });
     }
 
     // all state-changing API calls must come from the app itself (blocks cross-site form posts)
