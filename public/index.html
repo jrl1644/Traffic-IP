@@ -30,6 +30,8 @@
   header{background:var(--banner, var(--sign));color:var(--banner-ink, #fff);padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   header h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.2px;flex:1;min-width:220px}
   /* "Traffic-IP" wordmark with a winding road through it */
+  .sumrow{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap}
+  #showAllBtn{padding:5px 12px;font-size:13px;min-height:0}
   header h1.wmh1{line-height:0;display:flex;align-items:flex-end;gap:6px}
   header h1.wmh1 .hdrmeta{line-height:1.2;font-size:9px}
   .wordmark{display:block;height:60px;width:auto;max-width:100%;overflow:visible}
@@ -159,7 +161,7 @@
   body.mobile #filtersBtn{justify-self:start}
   body.mobile .intersearch .hint{display:none}
   body.mobile .bar{gap:6px}
-  body.mobile .bar #summary{flex-basis:100%}
+  body.mobile .bar .sumrow{flex-basis:100%}
   body.mobile .bar .sp{display:none}
   body.mobile .sortwrap{flex-basis:100%} body.mobile .sortwrap select{flex:1;min-height:40px;font-size:15px}
   body.mobile .bar .btn.ghost{background:var(--panel);border:1px solid var(--line)}
@@ -490,7 +492,7 @@
   </div>
 
   <div class="bar">
-    <span id="summary"></span>
+    <span class="sumrow"><span id="summary"></span><button type="button" class="btn primary sm hidden" id="showAllBtn">Show all intersections</button></span>
     <span id="pingLegend" class="pinglegend hidden" aria-label="Ping check legend"></span>
     <span class="sp"></span>
     <label class="sortwrap">Sort <select id="sortSel" aria-label="Sort intersections">
@@ -966,7 +968,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-30";
+const APP_VERSION = "26.11.12-31";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1265,7 +1267,6 @@ function startPanel(){
     <p>Type in the <b>Search</b> box above: one or both streets in either order (e.g. <i>I-5 at SR-14</i>), or an IP address, device, type, MAC, Intersection ID, ATMS Station ID or notes (e.g. <i>10.20.0.15</i>, <i>camera</i>, <i>INT-14</i>).</p>
     <div class="sp-stats"><span><b>${nI.toLocaleString()}</b> intersection${nI===1?"":"s"}</span><span><b>${nD.toLocaleString()}</b> device${nD===1?"":"s"}</span>${fileDocs.length ? `<span><b>${fileDocs.length.toLocaleString()}</b> photo${fileDocs.length===1?"":"s"} &amp; file${fileDocs.length===1?"":"s"}</span>` : ""}</div>
     <div class="sp-acts">
-      <button type="button" class="btn" data-showall="1">Show all intersections</button>
       ${can("inters.add") ? '<button type="button" class="btn primary" data-addinter="1">+ Add intersection</button>' : ""}
     </div>
   </div>`;
@@ -1481,6 +1482,7 @@ function render(){
   $("#summary").textContent = filt
     ? `Showing ${shownDev} of ${devices.length} devices · ${groups.length} of ${inters.size} intersections`
     : `${devices.length} device${devices.length===1?"":"s"} at ${inters.size} intersection${inters.size===1?"":"s"}`;
+  $("#showAllBtn").classList.toggle("hidden", filt || showAll || !inters.size);
 
   if(!inters.size){
     $("#list").innerHTML = `<div class="empty"><p style="font-size:17px;margin:0 0 6px;color:var(--ink)">No intersections yet</p><p style="margin:0 0 14px">Start by adding an intersection, then add the devices installed there.</p>${can("inters.add")?'<button class="btn primary" data-addinter="1">+ Add intersection</button>':''}</div>`;
@@ -1586,6 +1588,7 @@ $("#addInterBtn").onclick = ()=>openInter();
 $("#sortSel").value = sortBy; if(!$("#sortSel").value){ sortBy = "street"; $("#sortSel").value = "street"; }
 $("#sortSel").onchange = e=>{ sortBy = e.target.value; try{ localStorage.setItem(SORT_KEY, sortBy); }catch{} render(); };
 
+$("#showAllBtn").addEventListener("click", ()=>{ showAll = true; render(); });
 $("#list").addEventListener("click", e=>{
   if(e.target.closest("a.maplink")) return;   // let the map link open without toggling the card
   if(e.target.closest("[data-pingclear]")){ pingFilter = ""; searchOpen.clear(); render(); return; }
