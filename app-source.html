@@ -70,6 +70,18 @@
   td.act{white-space:nowrap;text-align:right;width:1%}
   .type{display:inline-block;background:var(--chip);border-radius:999px;padding:1px 10px;font-size:13px;white-space:nowrap}
   mark{background:#ffe27a;color:#1c2321;border-radius:2px;padding:0 1px}
+  body.nofilter #clearBtn,
+  body.nolist .sortwrap, body.nolist #expandAll, body.nolist #collapseAll, body.nolist .colwrap{display:none}
+  .startpanel{text-align:center;padding:38px 22px 30px;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:14px}
+  .startpanel .sp-icon{font-size:30px;line-height:1;margin-bottom:10px;opacity:.85}
+  .startpanel h2{margin:0 0 8px;font-size:19px;color:var(--ink)}
+  .startpanel p{margin:0 auto 16px;max-width:560px;color:var(--muted);font-size:14.5px;line-height:1.5}
+  .startpanel .sp-stats{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+  .startpanel .sp-stats span{background:var(--chip);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--muted)}
+  .startpanel .sp-stats b{color:var(--ink);font-weight:600}
+  .startpanel .sp-acts{display:flex;justify-content:center;flex-wrap:wrap;gap:8px}
+  .recenthead{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:4px 2px 8px}
+  .recenthead .btn{text-transform:none;letter-spacing:0;font-weight:500}
   .empty{text-align:center;color:var(--muted);padding:50px 20px;background:var(--panel);border:1px dashed var(--line);border-radius:10px}
   .ipcopy{cursor:pointer;border-bottom:1px dotted var(--muted)}
   @media (max-width:700px){
@@ -860,7 +872,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-2";
+const APP_VERSION = "26.11.12-3";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1132,6 +1144,24 @@ function devText(d,f){
   }
 }
 function getTerms(){ return norm($("#q").value).split(/\s+/).filter(Boolean); }
+/* Until you search, the list stays empty: a short start panel instead of every intersection.
+   Intersections you add or change in this session are listed there so you can see your work. */
+let showAll = false;
+const recent = [];                     // intersection keys, most recent first
+function touchRecent(key){ const i = recent.indexOf(key); if(i >= 0) recent.splice(i, 1); recent.unshift(key); recent.length = Math.min(recent.length, 8); }
+function startPanel(){
+  const nI = inters.size, nD = devices.length;
+  return `<div class="startpanel">
+    <div class="sp-icon" aria-hidden="true">🔍</div>
+    <h2>Search to find an intersection</h2>
+    <p>Type a street or both streets (e.g. <i>I-5 at SR-14</i>) in <b>Search for intersection</b>, or an IP address, device, type or ID in <b>Search everything</b>.</p>
+    <div class="sp-stats"><span><b>${nI.toLocaleString()}</b> intersection${nI===1?"":"s"}</span><span><b>${nD.toLocaleString()}</b> device${nD===1?"":"s"}</span>${fileDocs.length ? `<span><b>${fileDocs.length.toLocaleString()}</b> photo${fileDocs.length===1?"":"s"} &amp; file${fileDocs.length===1?"":"s"}</span>` : ""}</div>
+    <div class="sp-acts">
+      <button type="button" class="btn" data-showall="1">Show all intersections</button>
+      ${can("inters.add") ? '<button type="button" class="btn primary" data-addinter="1">+ Add intersection</button>' : ""}
+    </div>
+  </div>`;
+}
 function isFiltering(){ return !!($("#qi").value.trim() || $("#q").value.trim() || $("#fStreet").value || $("#fType").value); }
 /* returns [{inter, devices}] to show */
 /* ---------- intersection search ---------- */
@@ -1292,9 +1322,20 @@ function render(){
     $("#list").innerHTML = `<div class="empty"><p style="font-size:17px;margin:0 0 6px;color:var(--ink)">No intersections yet</p><p style="margin:0 0 14px">Start by adding an intersection, then add the devices installed there.</p>${can("inters.add")?'<button class="btn primary" data-addinter="1">+ Add intersection</button>':''}</div>`;
     return;
   }
-  if(!groups.length){ $("#list").innerHTML = `<div class="empty">Nothing matches your search.</div>`; return; }
+  let shown = groups, lead = "";
+  if(!filt && !showAll){
+    const byKey = new Map(groups.map(g=>[g.inter.key, g]));
+    shown = recent.map(k=>byKey.get(k)).filter(Boolean);
+    lead = startPanel() + (shown.length ? `<div class="recenthead">Changed in this session</div>` : "");
+  } else if(!filt && showAll){
+    lead = `<div class="recenthead">All intersections <button type="button" class="btn ghost" data-showall="0">Hide</button></div>`;
+  }
+  // list tools only matter when intersections are listed
+  document.body.classList.toggle("nolist", !shown.length);
+  document.body.classList.toggle("nofilter", !filt);
+  if(filt && !groups.length){ $("#list").innerHTML = `<div class="empty">Nothing matches your search.</div>`; return; }
 
-  $("#list").innerHTML = groups.map(({inter:i, devices:devs})=>{
+  $("#list").innerHTML = lead + shown.map(({inter:i, devices:devs})=>{
     // while searching, results start collapsed; ones you open stay open until the search changes
     const isCol = filt ? !searchOpen.has(i.key) : !expanded.has(i.key);
     const k = esc(i.key);
@@ -1376,6 +1417,8 @@ $("#sortSel").onchange = e=>{ sortBy = e.target.value; try{ localStorage.setItem
 
 $("#list").addEventListener("click", e=>{
   if(e.target.closest("a.maplink")) return;   // let the map link open without toggling the card
+  const sa = e.target.closest("[data-showall]");
+  if(sa){ showAll = sa.dataset.showall==="1"; render(); return; }
   const t = e.target.closest("[data-edit],[data-addat],[data-editinter],[data-addinter],[data-copy],[data-print],[data-files],[data-mtoggle],[data-toggle]");
   if(!t) return;
   const ds = t.dataset;
@@ -1661,7 +1704,7 @@ iform.addEventListener("submit", async e=>{
         await db.collection("devices").doc(id).set({...rest, street1:v.street1, street2:v.street2});
       }
     }
-    expanded.add(newKey); searchOpen.add(newKey);
+    expanded.add(newKey); searchOpen.add(newKey); touchRecent(newKey);
     toast(old ? "Intersection updated" : "Intersection added");
     closeInter();
   }catch(ex){ err.textContent = writeError(ex); }
@@ -1883,13 +1926,13 @@ form.addEventListener("submit", async e=>{
     if(editingId){
       const prev = devices.find(x=>x.id===editingId)||{};
       await db.collection("devices").doc(editingId).set({...d, created: prev.created||now, updated: now});
-      expanded.add(interKey(d.street1, d.street2)); searchOpen.add(interKey(d.street1, d.street2));
+      expanded.add(interKey(d.street1, d.street2)); searchOpen.add(interKey(d.street1, d.street2)); touchRecent(interKey(d.street1, d.street2));
       toast("Device updated");
       closeEdit();
     } else {
       const ref = db.collection("devices").doc();
       await ref.set({...d, created: now, updated: now});
-      expanded.add(interKey(d.street1, d.street2)); searchOpen.add(interKey(d.street1, d.street2));
+      expanded.add(interKey(d.street1, d.street2)); searchOpen.add(interKey(d.street1, d.street2)); touchRecent(interKey(d.street1, d.street2));
       if(again){
         toast(`${d.name} added — ready for the next one`);
         await startAnother(d.ip, ref.id, interKey(d.street1, d.street2));
