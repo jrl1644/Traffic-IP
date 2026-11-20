@@ -960,7 +960,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.12-31";
+const APP_VERSION = "26.11.20-1";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1525,7 +1525,7 @@ function render(){
       <div class="gbody">
         ${i.notes?`<div class="inotes">${hl(i.notes,"street")}</div>`:""}
         ${devs.length ? `<table>
-        <thead><tr>${shownCols().map(c=>`<th>${c.label}</th>`).join("")}<th></th></tr></thead>
+        <thead><tr>${shownCols().map(c=>`<th>${esc(c.label)}</th>`).join("")}<th></th></tr></thead>
         <tbody>${devs.map(d=>`<tr class="${mobOpen.has(d.id)?"mopen":""}">
           <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span>${devPingDot(d)}<span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(d.ip,"ip")}</span></td>
           ${shownCols().map(c=>c.cell(d,hl)).join("")}

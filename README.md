@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.12-31** (versions are `YY.MM.DD-revision` and shown at the top right of the header, above the gear menu; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.20-1** (versions are `YY.MM.DD-revision` and shown next to the logo in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -50,7 +50,7 @@ Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=Experime
 | `DATA_DIR` | `/data` | Where the database and backups are kept. |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Create the owner account at first start instead of in the browser. Only used when no accounts exist yet; remove them afterwards. |
 | `ADMIN_NAME` | `Administrator` | Display name for that owner account. |
-| `TRUST_PROXY` | `false` | Set to `true` only when the app is behind your own reverse proxy, so sign-in limits use each person's real address instead of the proxy's. Leave it off otherwise. |
+| `TRUST_PROXY` | `false` | Set to `true` only when the app is behind your own reverse proxy, so sign-in limits use each person's real address instead of the proxy's (taken from the last `X-Forwarded-For` entry, the one your proxy adds). Leave it off otherwise. |
 | `COOKIE_SECURE` | `false` | Set to `true` when the app is reached over **HTTPS**. |
 | `SESSION_DAYS` | `14` | How long a sign-in lasts. |
 | `PING_CONCURRENCY` | `16` | How many devices the Ping check pings at the same time. |
@@ -141,7 +141,9 @@ docker compose up -d
 ## Security
 
 - Passwords are stored as salted scrypt hashes. Sign-in tokens are random, kept in an HttpOnly cookie, and stored in the database only as hashes.
-- Wrong-password attempts are limited (10 per username and 50 per address every 10 minutes). Sign-in takes the same time whether or not a username exists.
+- Wrong-password attempts are limited every 10 minutes: 10 per username from one address, 50 per address, and 50 per username from all addresses. Sign-in takes the same time whether or not a username exists.
+- Live updates stop as soon as a sign-in ends: signing out, an expired session, a password reset, or a disabled or deleted account.
+- Each Docker build applies the latest Alpine security updates. Rebuild regularly (`docker compose build --pull --no-cache && docker compose up -d`) to pick up Node.js and Alpine security fixes.
 - Every change and every sign-in (including failed attempts) is recorded in Admin → Logs.
 - Roles are checked by the server on every change, duplicate IPs are refused by the server, and requests that don't come from the app itself are rejected.
 - Pages are sent with a strict Content-Security-Policy and other protective headers.

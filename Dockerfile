@@ -4,9 +4,10 @@ ENV NODE_ENV=production \
     PORT=8187 \
     DATA_DIR=/data
 
+# Apply the latest Alpine security updates on every build, even when the Node image is a few days behind.
 # ping for the optional Ping check (Admin → Settings). iputils' ping can run as a
 # normal user through unprivileged ICMP sockets, which Docker allows by default.
-RUN apk add --no-cache iputils
+RUN apk upgrade --no-cache && apk add --no-cache iputils
 
 WORKDIR /app
 COPY server.js ./

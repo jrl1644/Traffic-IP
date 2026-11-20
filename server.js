@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.12-31";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.20-1";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -288,11 +288,12 @@ function cookie(token, maxAge) {
 }
 setInterval(() => Q.pruneSessions.run(Date.now()), 3600e3);
 
-// login throttle: 10 failures per 10 minutes per IP+username, and 50 per IP across all usernames
+// login throttle: 10 failures per 10 minutes per IP+username, 50 per IP across all usernames, and 50 per username across all IPs
 const fails = new Map();
 function throttled(key, max = 10) { const f = fails.get(key); return f && f.n >= max && Date.now() - f.t < 600e3; }
 setInterval(() => { const now = Date.now(); for (const [k, f] of fails) if (now - f.t > 600e3) fails.delete(k); }, 600e3);
-const clientIp = req => (TRUST_PROXY && String(req.headers["x-forwarded-for"] || "").split(",")[0].trim()) || req.socket.remoteAddress || "";
+// behind a proxy, use the address the proxy itself added (the last X-Forwarded-For entry); earlier entries come from the client and can be faked
+const clientIp = req => (TRUST_PROXY && String(req.headers["x-forwarded-for"] || "").split(",").map(s => s.trim()).filter(Boolean).pop()) || req.socket.remoteAddress || "";
 // equal work whether or not the username exists, so response time doesn't reveal which usernames are real
 const DUMMY = hashPassword(crypto.randomBytes(16).toString("hex"));
 function failed(key) { const f = fails.get(key) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 600e3) { f.n = 0; f.t = Date.now(); } f.n++; fails.set(key, f); }
@@ -366,9 +367,12 @@ function broadcast(evt) {
   const msg = `data: ${JSON.stringify(evt)}\n\n`;
   for (const c of clients) { try { c.res.write(msg); } catch {} }
 }
-setInterval(() => { for (const c of clients) { try { c.res.write(": ping\n\n"); } catch {} } }, 25000);
+// close a live stream whose sign-in has ended (signed out, expired, password reset, account disabled or deleted)
+function streamValid(c) { const s = Q.getSession.get(c.token); if (!s || s.expires < Date.now()) return false; const u = getUser(s.user_id); return !!u && !u.disabled && !u.mustChange; }
+function endStream(c) { clients.delete(c); try { c.res.end(); } catch {} }
+setInterval(() => { for (const c of clients) { if (!streamValid(c)) { endStream(c); continue; } try { c.res.write(": ping\n\n"); } catch {} } }, 25000);
 // sign out live streams of a user who was disabled/deleted or changed role
-function kickUser(userId) { for (const c of clients) if (c.userId === userId) { try { c.res.write(`data: ${JSON.stringify({ type: "reload" })}\n\n`); } catch {} } }
+function kickUser(userId) { for (const c of clients) if (c.userId === userId) { try { c.res.write(`data: ${JSON.stringify({ type: "reload" })}\n\n`); } catch {} endStream(c); } }
 
 /* ------------------------------------------------------------------ write rules (enforced here, not just in the browser) */
 const normStreet = s => String(s || "").replace(/"/g, "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -512,17 +516,18 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/login" && req.method === "POST") {
       const b = await readBody(req);
       const ip = clientIp(req), key = ip + "|" + String(b.username || "").toLowerCase();
-      if (throttled(key) || throttled("ip|" + ip, 50)) return err(res, 429, "resource_exhausted", "Too many attempts. Try again in 10 minutes.");
+      const ukey = "user|" + String(b.username || "").trim().toLowerCase().slice(0, 100);
+      if (throttled(key) || throttled("ip|" + ip, 50) || throttled(ukey, 50)) return err(res, 429, "resource_exhausted", "Too many attempts. Try again in 10 minutes.");
       const u = checkLogin(b.username, b.password);
       const who = String(b.username || "").trim().slice(0, 60);
-      if (!u) { failed(key); failed("ip|" + ip); logChange({ username: who || "(blank)" }, "login_failed", null, null, `Failed sign-in for “${who}” — wrong username or password · ${ip} · ${deviceName(req)}`); return err(res, 401, "unauthenticated", "Wrong username or password."); }
+      if (!u) { failed(key); failed("ip|" + ip); failed(ukey); logChange({ username: who || "(blank)" }, "login_failed", null, null, `Failed sign-in for “${who}” — wrong username or password · ${ip} · ${deviceName(req)}`); return err(res, 401, "unauthenticated", "Wrong username or password."); }
       if (u.disabled) { logChange(u, "login_failed", null, null, `Failed sign-in for ${u.username} — account is disabled · ${ip} · ${deviceName(req)}`); return err(res, 403, "forbidden", "This account is disabled. Ask an admin."); }
       fails.delete(key);
       logChange(u, "login", null, null, `${u.username} signed in · ${ip} · ${deviceName(req)}`);
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie(newSession(u), SESSION_DAYS * 86400) });
     }
     if (p === "/api/logout" && req.method === "POST") {
-      const u = sessionUser(req); if (u) { Q.delSession.run(u._token); logChange(u, "logout", null, null, `${u.username} signed out · ${clientIp(req)} · ${deviceName(req)}`); }
+      const u = sessionUser(req); if (u) { Q.delSession.run(u._token); for (const c of clients) if (c.token === u._token) endStream(c); logChange(u, "logout", null, null, `${u.username} signed out · ${clientIp(req)} · ${deviceName(req)}`); }
       return send(res, 200, { ok: true }, { "Set-Cookie": cookie("", 0) });
     }
 
@@ -542,6 +547,7 @@ const server = http.createServer(async (req, res) => {
       const wasTemp = !!u.mustChange; delete u.mustChange;
       Object.assign(u, hashPassword(b.password)); saveUser(u);
       Q.delUserSessions.run(u.id, u._token);
+      for (const c of clients) if (c.userId === u.id && c.token !== u._token) endStream(c);   // other signed-in browsers lose live updates at once
       logChange(u, "account", "users", u.id, wasTemp ? `${u.username} replaced their temporary password` : `${u.username} changed their own password`);
       return send(res, 200, { ok: true });
     }
@@ -549,7 +555,7 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/events" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" });
       res.write("retry: 3000\n\n");
-      const c = { res, userId: u.id }; clients.add(c);
+      const c = { res, userId: u.id, token: u._token }; clients.add(c);
       req.on("close", () => clients.delete(c));
       return;
     }

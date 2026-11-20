@@ -170,6 +170,11 @@
       if (m.type === "ping") window.dispatchEvent(new CustomEvent("iid-ping", { detail: m }));
     };
     es.onerror = () => {
+      // the server refused the stream (signed out, expired or access removed): show sign-in, or reconnect if still signed in
+      if (es.readyState === EventSource.CLOSED) {
+        setTimeout(() => fetch("/api/session", { credentials: "same-origin" }).then(r => r.json()).then(s => { if (!s.user || s.user.mustChange) location.reload(); else connect(); }).catch(() => setTimeout(connect, 5000)), 1000);
+        return;
+      }
       // after a reconnect, refresh everything we've loaded in case we missed changes
       es.addEventListener("open", () => Object.keys(cache).forEach(c => { delete loaded[c]; load(c).then(() => { (colSubs[c] || []).forEach(fn => fn(mkSnap(c))); Object.keys(docSubs).filter(k => k.startsWith(c + "/")).forEach(k => { const id = k.slice(c.length + 1); docSubs[k].forEach(fn => fn(mkDoc(id, cache[c].get(id)))); }); }); }), { once: true });
     };
