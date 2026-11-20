@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.20-1";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.20-2";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -13,7 +13,9 @@ const { DatabaseSync } = require("node:sqlite");
 const PORT = parseInt(process.env.PORT || "8187", 10);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const PUBLIC_DIR = path.join(__dirname, "public");
-const COOKIE_SECURE = /^(1|true|yes)$/i.test(process.env.COOKIE_SECURE || "");
+// "auto" (default): Secure on visits that arrive over HTTPS (directly or through a reverse proxy), not on plain-HTTP visits
+// on your own network, where a browser would refuse a Secure cookie. "true" / "false" force it on or off.
+const COOKIE_SECURE = /^(1|true|yes)$/i.test(process.env.COOKIE_SECURE || "") ? "always" : /^(0|false|no)$/i.test(process.env.COOKIE_SECURE || "") ? "never" : "auto";
 const TRUST_PROXY = /^(1|true|yes)$/i.test(process.env.TRUST_PROXY || "");   // set when behind a reverse proxy, so login limits use the real client address
 const SESSION_DAYS = parseFloat(process.env.SESSION_DAYS || "14");
 const DB_PATH = path.join(DATA_DIR, "traffic-ip.sqlite");
@@ -283,8 +285,10 @@ function sessionUser(req) {
   if (!u || u.disabled) return null;
   return Object.assign(u, { _token: key });
 }
-function cookie(token, maxAge) {
-  return `iid_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${COOKIE_SECURE ? "; Secure" : ""}`;
+const viaHttps = req => !!req.socket.encrypted || String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase() === "https";
+function cookie(req, token, maxAge) {
+  const secure = COOKIE_SECURE === "always" || (COOKIE_SECURE === "auto" && viaHttps(req));
+  return `iid_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
 }
 setInterval(() => Q.pruneSessions.run(Date.now()), 3600e3);
 
@@ -511,7 +515,7 @@ const server = http.createServer(async (req, res) => {
       saveUser(u); const t = newSession(u);
       logChange(u, "login", null, null, `${u.username} signed in (first start) · ${clientIp(req)} · ${deviceName(req)}`);
       logChange(u, "account", "users", id, `Created owner account ${u.username}`);
-      return send(res, 200, { ok: true }, { "Set-Cookie": cookie(t, SESSION_DAYS * 86400) });
+      return send(res, 200, { ok: true }, { "Set-Cookie": cookie(req, t, SESSION_DAYS * 86400) });
     }
     if (p === "/api/login" && req.method === "POST") {
       const b = await readBody(req);
@@ -524,11 +528,11 @@ const server = http.createServer(async (req, res) => {
       if (u.disabled) { logChange(u, "login_failed", null, null, `Failed sign-in for ${u.username} — account is disabled · ${ip} · ${deviceName(req)}`); return err(res, 403, "forbidden", "This account is disabled. Ask an admin."); }
       fails.delete(key);
       logChange(u, "login", null, null, `${u.username} signed in · ${ip} · ${deviceName(req)}`);
-      return send(res, 200, { ok: true }, { "Set-Cookie": cookie(newSession(u), SESSION_DAYS * 86400) });
+      return send(res, 200, { ok: true }, { "Set-Cookie": cookie(req, newSession(u), SESSION_DAYS * 86400) });
     }
     if (p === "/api/logout" && req.method === "POST") {
       const u = sessionUser(req); if (u) { Q.delSession.run(u._token); for (const c of clients) if (c.token === u._token) endStream(c); logChange(u, "logout", null, null, `${u.username} signed out · ${clientIp(req)} · ${deviceName(req)}`); }
-      return send(res, 200, { ok: true }, { "Set-Cookie": cookie("", 0) });
+      return send(res, 200, { ok: true }, { "Set-Cookie": cookie(req, "", 0) });
     }
 
     /* --- everything below needs a signed-in user --- */

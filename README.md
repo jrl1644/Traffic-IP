@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.20-1** (versions are `YY.MM.DD-revision` and shown next to the logo in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.20-2** (versions are `YY.MM.DD-revision` and shown next to the logo in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -51,7 +51,7 @@ Node.js 22.5 or newer (it has SQLite built in): `node --disable-warning=Experime
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Create the owner account at first start instead of in the browser. Only used when no accounts exist yet; remove them afterwards. |
 | `ADMIN_NAME` | `Administrator` | Display name for that owner account. |
 | `TRUST_PROXY` | `false` | Set to `true` only when the app is behind your own reverse proxy, so sign-in limits use each person's real address instead of the proxy's (taken from the last `X-Forwarded-For` entry, the one your proxy adds). Leave it off otherwise. |
-| `COOKIE_SECURE` | `false` | Set to `true` when the app is reached over **HTTPS**. |
+| `COOKIE_SECURE` | `auto` | `auto` marks the sign-in cookie Secure on HTTPS visits (including through a reverse proxy that sends `X-Forwarded-Proto: https`) and not on plain-HTTP visits on your own network. `true` forces Secure, which breaks sign-in over plain HTTP; `false` never sets it. |
 | `SESSION_DAYS` | `14` | How long a sign-in lasts. |
 | `PING_CONCURRENCY` | `16` | How many devices the Ping check pings at the same time. |
 | `CHANGELOG_DAYS` | `365` | How many days Admin → Logs keeps entries. |
@@ -148,11 +148,11 @@ docker compose up -d
 - Roles are checked by the server on every change, duplicate IPs are refused by the server, and requests that don't come from the app itself are rejected.
 - Pages are sent with a strict Content-Security-Policy and other protective headers.
 - **First start:** whoever opens the app first creates the owner account. Do that (or set `ADMIN_USERNAME`/`ADMIN_PASSWORD`) **before** making the app reachable by others.
-- Use HTTPS (`COOKIE_SECURE=true` behind a reverse proxy) for anything beyond your local network.
+- Use HTTPS through a reverse proxy for anything beyond your local network. With the default `COOKIE_SECURE=auto`, the sign-in cookie is marked Secure on those HTTPS visits.
 
 ## Using it over the internet / HTTPS
 
-The container serves plain HTTP. For access beyond your local network, put it behind a reverse proxy that adds HTTPS (Caddy, nginx, Traefik, or your existing one) and set `COOKIE_SECURE=true`.
+The container serves plain HTTP. For access beyond your local network, put it behind a reverse proxy that adds HTTPS (Caddy, nginx, Traefik, or your existing one) and set `TRUST_PROXY=true`. Leave `COOKIE_SECURE` at `auto`: the sign-in cookie is marked Secure on HTTPS visits, while plain-HTTP visits on your own network keep working. The proxy must send `X-Forwarded-Proto` (Caddy, Traefik and Nginx Proxy Manager do this already; with plain nginx add `proxy_set_header X-Forwarded-Proto $scheme;` and `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`).
 
 Example with Caddy (automatic certificates):
 

@@ -17,8 +17,11 @@ services:
       # Remove these two lines after the first start.
       # ADMIN_USERNAME: admin
       # ADMIN_PASSWORD: change-me-please
-      # Set to "true" when the app is served over HTTPS (behind a reverse proxy).
-      COOKIE_SECURE: "false"
+      # Sign-in cookie: "auto" marks it Secure on HTTPS visits (through your reverse proxy) and not on
+      # plain-HTTP visits on your own network. "true" forces Secure (HTTPS only); "false" never.
+      COOKIE_SECURE: "auto"
+      # "true" when a reverse proxy sits in front, so sign-in limits and logs use each visitor's real address.
+      TRUST_PROXY: "true"
       # How long a sign-in lasts, in days.
       SESSION_DAYS: "14"
 
