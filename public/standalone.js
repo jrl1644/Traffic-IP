@@ -42,23 +42,27 @@
     session = s.user;
   })();
 
+  /* ---------- shared look of the sign-in and new-password screens ---------- */
+  const AUTH_CSS = `<style>
+    #authScreen{position:fixed;inset:0;z-index:50;background:var(--bg,#f4f5f2);display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans,system-ui)}
+    #authScreen form{background:var(--panel,#fff);border:1px solid var(--line,#ddd);border-radius:12px;padding:26px;width:100%;max-width:380px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+    #authScreen h1{margin:0 0 4px;font-size:20px;color:var(--ink,#111)} #authScreen p{margin:0 0 16px;color:var(--muted,#666);font-size:14px}
+    #authScreen label{display:block;font-size:12px;font-weight:600;color:var(--muted,#666);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 4px}
+    #authScreen input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--panel,#fff);color:var(--ink,#111)}
+    #authScreen button{margin-top:16px;width:100%;font:inherit;font-weight:600;padding:10px;border-radius:8px;border:none;background:var(--accent,#e0a100);color:#1c2321;cursor:pointer}
+    #authScreen .err{color:var(--danger,#b3261e);font-size:13px;min-height:18px;margin-top:10px}
+    #authScreen .bar{height:6px;background:var(--sign,#1f6f4a);border-radius:12px 12px 0 0;margin:-26px -26px 20px}
+    #authScreen .logo{display:none;margin:-26px -26px 20px;height:120px;background:var(--sign,#1f6f4a);border-radius:12px 12px 0 0;overflow:hidden;align-items:center;justify-content:center}
+    #authScreen .logo img{max-width:100%;max-height:100%;width:auto;height:100%;object-fit:contain;display:block}
+    #authScreen.haslogo .logo{display:flex} #authScreen.haslogo .bar{display:none}
+    #authScreen button.link{background:none;color:var(--muted,#666);font-weight:400;margin-top:8px;padding:6px}
+  </style>`;
+
   function showAuth(setup, done) {
     const host = document.createElement("div");
     host.id = "authScreen";
     host.innerHTML = `
-      <style>
-        #authScreen{position:fixed;inset:0;z-index:50;background:var(--bg,#f4f5f2);display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans,system-ui)}
-        #authScreen form{background:var(--panel,#fff);border:1px solid var(--line,#ddd);border-radius:12px;padding:26px;width:100%;max-width:380px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
-        #authScreen h1{margin:0 0 4px;font-size:20px;color:var(--ink,#111)} #authScreen p{margin:0 0 16px;color:var(--muted,#666);font-size:14px}
-        #authScreen label{display:block;font-size:12px;font-weight:600;color:var(--muted,#666);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 4px}
-        #authScreen input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--panel,#fff);color:var(--ink,#111)}
-        #authScreen button{margin-top:16px;width:100%;font:inherit;font-weight:600;padding:10px;border-radius:8px;border:none;background:var(--accent,#e0a100);color:#1c2321;cursor:pointer}
-        #authScreen .err{color:var(--danger,#b3261e);font-size:13px;min-height:18px;margin-top:10px}
-        #authScreen .bar{height:6px;background:var(--sign,#1f6f4a);border-radius:12px 12px 0 0;margin:-26px -26px 20px}
-        #authScreen .logo{display:none;margin:-26px -26px 20px;height:120px;background:var(--sign,#1f6f4a);border-radius:12px 12px 0 0;overflow:hidden;align-items:center;justify-content:center}
-        #authScreen .logo img{max-width:100%;max-height:100%;width:auto;height:100%;object-fit:contain;display:block}
-        #authScreen.haslogo .logo{display:flex} #authScreen.haslogo .bar{display:none}
-      </style>
+      ${AUTH_CSS}
       <form novalidate>
         <div class="bar"></div>
         <div class="logo"><img alt="Icon"></div>
@@ -96,17 +100,7 @@
     const host = document.createElement("div");
     host.id = "authScreen";
     host.innerHTML = `
-      <style>
-        #authScreen{position:fixed;inset:0;z-index:50;background:var(--bg,#f4f5f2);display:flex;align-items:center;justify-content:center;padding:20px;font-family:var(--sans,system-ui)}
-        #authScreen form{background:var(--panel,#fff);border:1px solid var(--line,#ddd);border-radius:12px;padding:26px;width:100%;max-width:380px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
-        #authScreen h1{margin:0 0 4px;font-size:20px;color:var(--ink,#111)} #authScreen p{margin:0 0 16px;color:var(--muted,#666);font-size:14px}
-        #authScreen label{display:block;font-size:12px;font-weight:600;color:var(--muted,#666);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 4px}
-        #authScreen input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--panel,#fff);color:var(--ink,#111)}
-        #authScreen button{margin-top:16px;width:100%;font:inherit;font-weight:600;padding:10px;border-radius:8px;border:none;background:var(--accent,#e0a100);color:#1c2321;cursor:pointer}
-        #authScreen button.link{background:none;color:var(--muted,#666);font-weight:400;margin-top:8px;padding:6px}
-        #authScreen .err{color:var(--danger,#b3261e);font-size:13px;min-height:18px;margin-top:10px}
-        #authScreen .bar{height:6px;background:var(--sign,#1f6f4a);border-radius:12px 12px 0 0;margin:-26px -26px 20px}
-      </style>
+      ${AUTH_CSS}
       <form novalidate>
         <div class="bar"></div>
         <h1>Choose a new password</h1>
@@ -143,17 +137,18 @@
   const loaded = {};           // coll -> Promise
   const colSubs = {};          // coll -> Set(fn)
   const docSubs = {};          // "coll/id" -> Set(fn)
-  const freeze = o => o;       // keep plain objects
   const mkDoc = (id, data) => ({ id, exists: data !== undefined && data !== null, data: () => (data == null ? undefined : data), metadata: { fromCache: false, hasPendingWrites: false } });
   const mkSnap = c => {
     const docs = [...(cache[c] || new Map()).entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([id, d]) => mkDoc(id, d));
     return { docs, size: docs.length, empty: !docs.length, docChanges: () => docs.map((doc, i) => ({ type: "added", doc, oldIndex: -1, newIndex: i })), metadata: { fromCache: false, hasPendingWrites: false } };
   };
   function load(c) {
-    return (loaded[c] ||= api("GET", `/api/data/${encodeURIComponent(c)}`).then(rows => { cache[c] = new Map(rows.map(r => [r.id, freeze(r.data)])); }));
+    return (loaded[c] ||= api("GET", `/api/data/${encodeURIComponent(c)}`).then(rows => { cache[c] = new Map(rows.map(r => [r.id, r.data])); }));
   }
   function apply(c, id, data) {
     if (!cache[c]) return;
+    // the server echoes our own saves back: skip a change that's already in place, so the page isn't redrawn twice
+    if (data === null ? !cache[c].has(id) : JSON.stringify(cache[c].get(id)) === JSON.stringify(data)) return;
     if (data === null) cache[c].delete(id); else cache[c].set(id, data);
     (colSubs[c] || []).forEach(fn => fn(mkSnap(c)));
     (docSubs[c + "/" + id] || []).forEach(fn => fn(mkDoc(id, data)));
@@ -194,7 +189,7 @@
         load(c).then(() => next(mkDoc(id, cache[c].get(id)))).catch(e => error && error({ code: "unavailable", message: e.message }));
         return () => docSubs[k].delete(next);
       },
-      collection(sub) { throw new TypeError("Sub-collections aren't used in standalone mode."); },
+      collection() { throw new TypeError("Sub-collections aren't used in standalone mode."); },
     };
   }
   function collRef(c) {

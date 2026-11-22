@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.22-6";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.22-7";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -54,6 +54,7 @@ const Q = {
   allDocs: db.prepare("SELECT coll, id, data FROM docs ORDER BY coll, id"),
   clearDocs: db.prepare("DELETE FROM docs"),
   ipUsers: db.prepare("SELECT id, data FROM docs WHERE coll = 'devices' AND json_extract(data, '$.ip') = ? AND id <> ? LIMIT 1000"),
+  deviceStreets: db.prepare("SELECT json_extract(data, '$.street1') AS s1, json_extract(data, '$.street2') AS s2 FROM docs WHERE coll = 'devices'"),
   deviceIps: db.prepare("SELECT DISTINCT json_extract(data, '$.ip') AS ip FROM docs WHERE coll = 'devices'"),
   countColl: db.prepare("SELECT COUNT(*) AS n FROM docs WHERE coll = ?"),
   getUser: db.prepare("SELECT data FROM users WHERE id = ?"),
@@ -77,7 +78,6 @@ function tx(fn) { db.exec("BEGIN IMMEDIATE"); try { const r = fn(); db.exec("COM
 const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
 const parse = t => { try { return JSON.parse(t); } catch { return null; } };
 function getDoc(c, id) { const r = Q.getDoc.get(c, id); return r ? parse(r.data) : undefined; }
-function listColl(c) { const out = {}; for (const r of Q.listDocs.all(c)) out[r.id] = parse(r.data); return out; }
 function putDoc(c, id, data) { if (c === "devices" && typeof data.ip === "string") data.ip = data.ip.trim(); Q.putDoc.run(c, id, JSON.stringify(data)); }
 function delDoc(c, id) { Q.delDoc.run(c, id); }
 const adminDoc = id => getDoc("admin", id) || {};
@@ -154,11 +154,11 @@ function describeChange(c, before, after, id) {
   const verb = !before ? "Added" : !after ? "Removed" : "Changed";
   let what;
   switch (c) {
-    case "devices": what = `device ${d.name || "(unnamed)"} (${d.ip || "no IP"})${where(d)}`; break;
+    case "devices": what = `device ${d.name || "(unnamed)"} (${d.ip ? d.ip + (d.port ? ":" + d.port : "") : "no IP"})${where(d)}`; break;
     case "intersections": what = `intersection ${d.street1 || "?"} & ${d.street2 || "?"}${d.number ? ` [${d.number}]` : ""}`; break;
     case "pools": what = `IP pool ${d.name || ""}${d.range ? ` (${d.range})` : ""}`; break;
     case "deviceOptions": what = `“${d.name || ""}” in the Device list`; break;
-    case "admin": what = ({ config: "role privileges", branding: "custom icon", settings: "settings", fields: "custom device fields" })[id] || "admin settings"; break;
+    case "admin": what = ({ config: "role privileges", branding: "customization (icon, banner color)", settings: "settings", fields: "custom device fields" })[id] || "admin settings"; break;
     case "members": what = `member ${d.name || d.email || ""}`; break;
     case "files": what = `file “${d.name || ""}”${d.label ? ` at ${d.label}` : ""}`; break;
     default: what = `${c} record`;
@@ -294,8 +294,9 @@ setInterval(() => Q.pruneSessions.run(Date.now()), 3600e3);
 
 // login throttle: 10 failures per 10 minutes per IP+username, 50 per IP across all usernames, and 50 per username across all IPs
 const fails = new Map();
+const leases = new Map();   // IP-assignment locks, in memory only
 function throttled(key, max = 10) { const f = fails.get(key); return f && f.n >= max && Date.now() - f.t < 600e3; }
-setInterval(() => { const now = Date.now(); for (const [k, f] of fails) if (now - f.t > 600e3) fails.delete(k); }, 600e3);
+setInterval(() => { const now = Date.now(); for (const [k, f] of fails) if (now - f.t > 600e3) fails.delete(k); for (const [k, l] of leases) if (l.expires < now) leases.delete(k); }, 600e3);
 // behind a proxy, use the address the proxy itself added (the last X-Forwarded-For entry); earlier entries come from the client and can be faked
 const clientIp = req => (TRUST_PROXY && String(req.headers["x-forwarded-for"] || "").split(",").map(s => s.trim()).filter(Boolean).pop()) || req.socket.remoteAddress || "";
 // equal work whether or not the username exists, so response time doesn't reveal which usernames are real
@@ -310,7 +311,6 @@ if (!userCount() && process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD) {
   console.log(`Created owner account "${process.env.ADMIN_USERNAME}" from environment.`);
 }
 
-const leases = new Map();   // in memory only
 
 /* ------------------------------------------------------------------ ping checks
    Admins turn this on under Settings. The server pings every device IP with the system
@@ -399,7 +399,7 @@ function writeAllowed(u, c, id, kind /* create|update|delete */) {
   if (c === "intersections" && kind === "delete" && can(u, "inters.edit")) {
     const doc = getDoc("intersections", id); if (!doc) return true;
     const a = normStreet(doc.street1), b = normStreet(doc.street2);
-    return !Object.values(listColl("devices")).some(d => { const x = normStreet(d.street1), y = normStreet(d.street2); return (x === a && y === b) || (x === b && y === a); });
+    return !Q.deviceStreets.all().some(d => { const x = normStreet(d.s1), y = normStreet(d.s2); return (x === a && y === b) || (x === b && y === a); });
   }
   return false;
 }

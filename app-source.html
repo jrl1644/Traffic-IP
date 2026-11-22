@@ -50,9 +50,6 @@
   .btn.ghost.del:hover{color:var(--danger)}
   .btn:disabled{opacity:.5;cursor:not-allowed}
   main{max-width:1200px;margin:0 auto;padding:20px 24px 60px}
-  .controls{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px;align-items:end}
-  .controls .f > span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  @media (max-width:800px){.controls{grid-template-columns:1fr 1fr}.controls .search{grid-column:1/-1}}
   .intersearch{margin-bottom:10px}
   #qiInfo{margin-top:4px;min-height:16px}
   label.f,div.f.search{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
@@ -109,7 +106,6 @@
   body.nofilter #clearBtn,
   body.nolist .sortwrap, body.nolist .colwrap{display:none}
   body.nolist:not(.pingfiltering) #pingLegend{display:none!important}      /* not on the start screen */
-  .controls[hidden],#filtersBtn[hidden]{display:none!important}
   .startpanel{text-align:center;padding:38px 22px 30px;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:14px}
   .startpanel .sp-icon{font-size:30px;line-height:1;margin-bottom:10px;opacity:.85}
   .startpanel h2{margin:0 0 8px;font-size:19px;color:var(--ink)}
@@ -157,11 +153,6 @@
   body.mobile .btn{min-height:42px}
   body.mobile .btn.ghost{padding:8px 12px}
   /* search + filters */
-  body.mobile .controls{grid-template-columns:1fr;gap:10px}
-  body.mobile .controls .search{grid-column:auto}
-  body.mobile .controls > label:not(.search){display:none}
-  body.mobile.filters-open .controls > label:not(.search){display:flex}
-  body.mobile #filtersBtn{justify-self:start}
   body.mobile .intersearch .hint{display:none}
   body.mobile .bar{gap:6px}
   body.mobile .bar .sumrow{flex-basis:100%}
@@ -339,7 +330,8 @@
   .pingbanner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;margin-bottom:12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:14px}
   .pingbanner .sp{flex:1}
   .pinglegend .pl-when{color:var(--muted)}
-  body.mobile .pinglegend{flex-basis:100%;border-radius:10px}
+  body.mobile .pinglegend{flex-basis:100%;border-radius:10px;box-sizing:border-box;max-width:100%}
+  .pinglegend > span.pl-err, body.mobile .pinglegend > span{white-space:normal}   /* long notices wrap instead of running off a phone screen */
   .logobox .defnote{margin:auto 12px auto auto;align-self:center;font-size:12px;color:var(--banner-ink,#fff);opacity:.75;white-space:nowrap}
   .logobox{display:flex;align-items:stretch;height:84px;border-radius:10px;background:var(--banner, var(--sign));margin-bottom:12px;overflow:hidden;color:#fff}
   .logobox img{height:100%;width:auto;object-fit:cover;display:block}
@@ -408,7 +400,6 @@
   body.mobile .poolrow .pact{align-self:flex-end}
   body.mobile .poolrow .pact .btn{border:1px solid var(--line);min-width:88px}
   .ptable{border:1px solid var(--line);border-radius:8px;overflow:hidden;display:table}
-  .poolbadge{background:var(--sign);color:#fff}
   .typechips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;text-transform:none;letter-spacing:0;font-weight:400}
   .typechips label{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:14px;color:var(--ink);cursor:pointer}
   .typechips label.taken{opacity:.55;cursor:not-allowed}
@@ -461,30 +452,6 @@
       <input id="qi" type="search" placeholder="e.g. I-5 at SR-14, 10.20.0.15, camera, INT-14…" autocomplete="off">
     </label>
     <div class="hint" id="qiInfo"></div>
-  </div>
-  <!-- "Search everything" and the Street / Device type / Search in filters are switched off (kept empty so the rest of the page works unchanged) -->
-  <div class="controls" hidden>
-    <button type="button" class="btn mobileOnly" id="filtersBtn" aria-expanded="false" hidden>Filters ▾</button>
-    <label class="f search"><span>Search everything</span>
-      <input id="q" type="search" placeholder="e.g. Main St, 10.20.1., camera, Cabinet 4…" autocomplete="off">
-    </label>
-    <label class="f">Street
-      <select id="fStreet"><option value="">All streets</option></select>
-    </label>
-    <label class="f">Device type
-      <select id="fType"><option value="">All types</option></select>
-    </label>
-    <label class="f">Search in
-      <select id="fField">
-        <option value="">All fields</option>
-        <option value="street">Intersections (streets, ID, notes)</option>
-        <option value="ip">IP address</option>
-        <option value="name">Device</option>
-        <option value="type">Device type</option>
-        <option value="mac">MAC address</option>
-        <option value="notes">Device notes</option>
-      </select>
-    </label>
   </div>
 
   <div class="bar">
@@ -957,13 +924,10 @@
   document.getElementById("hdrActions").addEventListener("click", e=>{ if(e.target.closest(".btn") && !e.target.closest("#themeBtn")) { document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
   document.addEventListener("click", e=>{ if(!e.target.closest("#hdrActions") && !e.target.closest("#menuBtn")){ document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); } });
   document.addEventListener("keydown", e=>{ if(e.key==="Escape" && document.body.classList.contains("menu-open")){ document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", false); menuBtn.focus(); } }, true);
-  // filters (phones): Street / Device type / Search in fold away
-  const fb = document.getElementById("filtersBtn");
-  fb.addEventListener("click", ()=>{ const open = document.body.classList.toggle("filters-open"); fb.setAttribute("aria-expanded", open); });
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.22-6";
+const APP_VERSION = "26.11.22-7";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1082,12 +1046,11 @@ function shieldSvg(num){
 /* a street "sign" chip; interstates get the shield */
 function streetChip(name, hl){
   const kind = roadKind(name);
-  if(kind==="interstate") return `<span class="sign interstate" title="Interstate ${esc(interstateNum(name))}">${shieldSvg(interstateNum(name))}${hl(plainStreet(name),"street")}</span>`;
-  if(kind==="state") return `<span class="sign stateroute" title="Washington State Route ${esc(stateRouteNum(name))}">${stateRouteSvg()}${hl(plainStreet(name),"street")}</span>`;
-  return `<span class="sign">${hl(plainStreet(name),"street")}</span>`;
+  if(kind==="interstate") return `<span class="sign interstate" title="Interstate ${esc(interstateNum(name))}">${shieldSvg(interstateNum(name))}${hl(plainStreet(name))}</span>`;
+  if(kind==="state") return `<span class="sign stateroute" title="Washington State Route ${esc(stateRouteNum(name))}">${stateRouteSvg()}${hl(plainStreet(name))}</span>`;
+  return `<span class="sign">${hl(plainStreet(name))}</span>`;
 }
 /* directional prefix helpers */
-const DIRS = ["N","S","E","W","NE","NW","SE","SW"];
 const STREET_SUFFIX = /^(st|street|ave|avenue|rd|road|blvd|dr|drive|ln|lane|way|ct|pl|pkwy|hwy|cir|ter|trl)\.?$/i;
 const BOUND = ["NB","SB","EB","WB"];
 /* "N Main St" → {dir:"N", name:"Main St"}; "I-5 NB" → {dir:"NB", name:"I-5"}; leaves "E St", "North Lake Dr" alone */
@@ -1220,8 +1183,14 @@ function rebuild(){
     inters.get(key).devices.push(d);
   });
   inters.forEach(i=>i.devices.sort((a,b)=>ipNum(a.ip)-ipNum(b.ip) || String(a.ip).localeCompare(b.ip)));
+  // worked out once here, so drawing a long list doesn't search the whole inventory for every row
+  epCount = new Map(); devices.forEach(d=>{ const k = epOf(d); epCount.set(k, (epCount.get(k)||0) + 1); });
+  idIndex = new Map(); inters.forEach(i=>{ const k = idKey(i.number); if(k){ if(!idIndex.has(k)) idIndex.set(k, []); idIndex.get(k).push(i); } });
+  typePoolCache = new Map();
   rebuildFiles();
 }
+let epCount = new Map(), idIndex = new Map(), typePoolCache = new Map();
+const epOf = d => String(d.ip||"").trim() + ":" + (d.port || "80");
 const sortedInters = () => [...inters.values()].sort((a,b)=>a.key.localeCompare(b.key,undefined,{numeric:true}));
 /* the order intersections are listed in (Sort menu; remembered on this device) */
 const SORT_KEY = "traffic-ip-sort";
@@ -1251,17 +1220,17 @@ function orderedInters(){
 /* ---------- filtering ---------- */
 const interText = i => [i.street1,i.street2,i.number,i.atmsId,i.notes,gpsText(i.gps)].join(" ");
 /* the pool that hands out IPs for a device type */
-const typePool = type => !type ? null : [...pools.values()].find(p=>p.types.some(t=>norm(t)===norm(type))) || null;
-function devText(d,f){
-  switch(f){
-    case "ip": return ipShow(d); case "name": return d.name; case "type": return d.type;
-    case "mac": return d.mac||""; case "notes": return d.notes||"";
-    default: return [ipShow(d),d.name,d.type,d.mac,d.notes,...customFields.map(f=>cfShow(d,f))].join(" ");
-  }
+function typePool(type){
+  if(!type) return null;
+  const k = norm(type);
+  if(!typePoolCache.has(k)) typePoolCache.set(k, [...pools.values()].find(p=>p.types.some(t=>norm(t)===k)) || null);
+  return typePoolCache.get(k);
 }
+/* everything about a device the search box looks through */
+const devText = d => [ipShow(d),d.name,d.type,d.mac,d.notes,...customFields.map(f=>cfShow(d,f))].join(" ");
 /* words from the search box, for "search everything" matching and highlighting ("at", "&"… are left out) */
 const SEARCH_GLUE = new Set(["at","and","x","with","&","@","/","+",","]);
-function getTerms(){ return norm($("#q").value || $("#qi").value).split(/\s+/).filter(t=>t && !SEARCH_GLUE.has(t)); }
+function getTerms(){ return norm($("#qi").value).split(/\s+/).filter(t=>t && !SEARCH_GLUE.has(t)); }
 /* Until you search, the list stays empty: a short start panel instead of every intersection.
    Intersections you add or change in this session are listed there so you can see your work. */
 let showAll = false;
@@ -1279,7 +1248,7 @@ function startPanel(){
     </div>
   </div>`;
 }
-function isFiltering(){ return !!(pingFilter || $("#qi").value.trim() || $("#q").value.trim() || $("#fStreet").value || $("#fType").value); }
+function isFiltering(){ return !!(pingFilter || $("#qi").value.trim()); }
 /* returns [{inter, devices}] to show */
 /* ---------- intersection search ---------- */
 const compact = s => fixStreet(s).toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -1317,13 +1286,11 @@ function interMatches(parts, i){
 let pingFilter = "";                  // "" | "some" | "none"
 const devDown = d => { const r = pingState.results[String(d.ip||"").trim()]; return !!(r && !r.ok); };
 function filtered(){
-  const terms = getTerms(), st=$("#fStreet").value, ty=$("#fType").value, fld=$("#fField").value;
   const qiText = tidy($("#qi").value), iparts = parseInterQuery(qiText), gterms = qiText ? getTerms() : [];
+  const exactIp = /^\d{1,3}(\.\d{1,3}){3}(:\d{1,5})?$/.test(qiText) ? qiText : "";     // a whole IP finds that device, not 10.20.0.150 for 10.20.0.1
   const out = [];
   for(const i of orderedInters()){
-    if(st && norm(i.street1)!==st && norm(i.street2)!==st) continue;
-    let devs = ty ? i.devices.filter(d=>norm(d.type)===ty) : i.devices;
-    if(ty && !devs.length) continue;
+    let devs = i.devices;
     if(qiText){
       // one box searches everything: the streets (either order), or the intersection's ID / ATMS / notes,
       // or its devices (IP, device, type, MAC, notes, custom fields) — then only the matching devices show
@@ -1331,18 +1298,8 @@ function filtered(){
       const iHay = norm(interText(i)) + " " + compact(i.street1) + " " + compact(i.street2);   // "i5" finds "I-5"
       const interHit = gterms.length && gterms.every(t=>iHay.includes(t));
       if(!streetHit && !interHit){
-        const exactIp = /^\d{1,3}(\.\d{1,3}){3}(:\d{1,5})?$/.test(qiText) ? qiText : "";     // a whole IP finds that device, not 10.20.0.150 for 10.20.0.1
         devs = exactIp ? devs.filter(d=>exactIp.includes(":") ? ipShow(d)===exactIp || (exactIp.endsWith(":80") && ipShow(d)===exactIp.slice(0,-3)) : String(d.ip||"").trim()===exactIp)
-                       : devs.filter(d=>{ const h = norm(devText(d,"")) + " " + iHay; return gterms.length && gterms.every(t=>h.includes(t)); });
-        if(!devs.length) continue;
-      }
-    }
-    if(terms.length && $("#q").value.trim()){
-      const iHay = norm(interText(i));
-      const interMatches = (fld===""||fld==="street") && terms.every(t=>iHay.includes(t));
-      if(!interMatches){
-        if(fld==="street") continue;
-        devs = devs.filter(d=>{ const h = norm(devText(d,fld)) + (fld==="" ? " "+iHay : ""); return terms.every(t=>h.includes(t)); });
+                       : devs.filter(d=>{ const h = norm(devText(d)) + " " + iHay; return gterms.length && gterms.every(t=>h.includes(t)); });
         if(!devs.length) continue;
       }
     }
@@ -1361,23 +1318,6 @@ function refreshOptions(){
   const streets = new Map(), types = new Map();
   inters.forEach(i=>[i.street1,i.street2].forEach(s=>{ if(s && !streets.has(norm(s))) streets.set(norm(s),s); }));
   devices.forEach(d=>{ if(d.type && !types.has(norm(d.type))) types.set(norm(d.type),d.type); });
-  const fill = (sel, map, label) => {
-    const cur = sel.value;
-    const opts = [...map.entries()].sort((a,b)=>a[1].localeCompare(b[1],undefined,{numeric:true}));
-    sel.innerHTML = `<option value="">${label}</option>` + opts.map(([k,v])=>`<option value="${esc(k)}">${esc(v)}</option>`).join("");
-    sel.value = map.has(cur) ? cur : "";
-  };
-  {
-    const sel = $("#fStreet"), cur = sel.value;
-    const groups = {interstate:[], state:[], street:[]};
-    [...streets.entries()].forEach(([k,v])=>groups[roadKind(v)].push([k,v]));
-    const opt = arr => arr.sort((a,b)=>plainStreet(a[1]).localeCompare(plainStreet(b[1]),undefined,{numeric:true})).map(([k,v])=>`<option value="${esc(k)}">${esc(plainStreet(v))}</option>`).join("");
-    sel.innerHTML = `<option value="">All streets</option>` +
-      [["interstate","Interstates"],["state","State routes"],["street","Streets"]].filter(([g])=>groups[g].length)
-        .map(([g,label])=>`<optgroup label="${label}">${opt(groups[g])}</optgroup>`).join("");
-    sel.value = streets.has(cur) ? cur : "";
-  }
-  fill($("#fType"), types, "All types");
   $("#streetList").innerHTML = [...streets.values()].map(s=>`<option value="${esc(s)}">`).join("");
   const allTypes = new Map(DEFAULT_TYPES.map(t=>[norm(t),t])); types.forEach((v,k)=>allTypes.set(k,v));
   $("#typeList").innerHTML = [...allTypes.values()].map(s=>`<option value="${esc(s)}">`).join("");
@@ -1387,12 +1327,12 @@ function refreshOptions(){
 const dash = '<span style="color:var(--muted)">—</span>';
 const fmtDate = v => { if(!v) return ""; const d = new Date(v); return isNaN(d) ? "" : d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}); };
 const COLUMNS = [
-  {key:"name",  label:"Device", on:true,  cell:(d,hl)=>`<td data-l="Device"><span class="devname">${devPingDot(d)}<strong>${hl(d.name,"name")}</strong></span></td>`},
-  {key:"type",  label:"Type",        on:true,  cell:(d,hl)=>`<td data-l="Type"><span class="type">${hl(d.type,"type")}</span></td>`},
-  {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(ipShow(d))}" title="Click to copy">${hl(ipShow(d),"ip")}</span>${(()=>{ const twin = devices.find(x=>sameEp(x, d.ip, d.port) && x.id!==d.id);
+  {key:"name",  label:"Device", on:true,  cell:(d,hl)=>`<td data-l="Device"><span class="devname">${devPingDot(d)}<strong>${hl(d.name)}</strong></span></td>`},
+  {key:"type",  label:"Type",        on:true,  cell:(d,hl)=>`<td data-l="Type"><span class="type">${hl(d.type)}</span></td>`},
+  {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(ipShow(d))}" title="Click to copy">${hl(ipShow(d))}</span>${(()=>{ const twin = (epCount.get(epOf(d))||0) > 1 && devices.find(x=>sameEp(x, d.ip, d.port) && x.id!==d.id);
     return twin ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="Also used by ${esc(twin.name)} at ${esc(plainStreet(twin.street1))} & ${esc(plainStreet(twin.street2))}">⚠ duplicate IP and port — fix needed</small>` : ""; })()}${(()=>{ const tp=typePool(d.type); return tp?.range && !inRange(d.ip,tp.range) ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="${esc(d.type)} IPs normally come from ${esc(tp.name)} (${esc(tp.range.text)})">outside ${esc(tp.name)} pool</small>` : ""; })()}</td>`},
-  {key:"mac",   label:"MAC",         on:true,  cell:(d,hl)=>`<td class="mac" data-l="MAC">${d.mac?hl(d.mac,"mac"):dash}</td>`},
-  {key:"notes", label:"Notes",       on:true,  cell:(d,hl)=>`<td class="notes" data-l="Notes">${d.notes?hl(d.notes,"notes"):""}</td>`},
+  {key:"mac",   label:"MAC",         on:true,  cell:(d,hl)=>`<td class="mac" data-l="MAC">${d.mac?hl(d.mac):dash}</td>`},
+  {key:"notes", label:"Notes",       on:true,  cell:(d,hl)=>`<td class="notes" data-l="Notes">${d.notes?hl(d.notes):""}</td>`},
   {key:"created", label:"Added",     on:false, cell:d=>`<td data-l="Added" style="white-space:nowrap">${fmtDate(d.created)||dash}</td>`},
   {key:"updated", label:"Last updated", on:false, cell:d=>`<td data-l="Updated" style="white-space:nowrap">${fmtDate(d.updated)||dash}</td>`},
 ];
@@ -1401,7 +1341,7 @@ let customFields = [];                 // [{id, label, type:"text"|"number"|"dat
 const cfValue = (d, f) => { const v = d?.custom?.[f.id]; return v===undefined || v===null ? "" : String(v); };
 const cfShow = (d, f) => { const v = cfValue(d, f); return f.type==="date" && v ? (fmtDate(v+"T12:00:00") || v) : v; };
 const allCols = () => [...COLUMNS, ...customFields.map(f=>({key:"cf_"+f.id, label:f.label, on:false, custom:f,
-  cell:(d,hl)=>{ const v = cfShow(d,f); return `<td data-l="${esc(f.label)}">${v ? hl(v,"custom") : dash}</td>`; }}))];
+  cell:(d,hl)=>{ const v = cfShow(d,f); return `<td data-l="${esc(f.label)}">${v ? hl(v) : dash}</td>`; }}))];
 /* ---------- light / dark theme (remembered on this device) ---------- */
 const THEME_KEY = "traffic-ip-theme", THEMES = ["light","dark"];
 const THEME_LABEL = {light:"☀ Light", dark:"☾ Dark"};
@@ -1481,10 +1421,9 @@ $("#pingLegend").addEventListener("click", e=>{
 });
 function render(){
   renderPingLegend();
-  { const n = ["#fStreet","#fType","#fField"].filter(x=>$(x).value).length; const fb = $("#filtersBtn"); if(fb) fb.textContent = n ? `Filters (${n}) ▾` : "Filters ▾"; }
   const groups = filtered();
-  const hlTerms = getTerms(), fld = $("#fField").value;
-  const hl = (text,f) => (!fld || fld===f) ? highlight(text,hlTerms) : esc(text);
+  const hlTerms = getTerms();
+  const hl = text => highlight(text,hlTerms);
   const shownDev = groups.reduce((n,g)=>n+g.devices.length,0);
   const filt = isFiltering();
   $("#summary").textContent = filt
@@ -1525,9 +1464,9 @@ function render(){
         <span class="gsigns">${streetChip(i.street1,hl)}<span class="amp">&amp;</span>${streetChip(i.street2,hl)}</span>
         <span class="gmeta">
         ${i.number?(()=>{ const dups = idHolders(i.number,[i.key]);
-          return dups.length ? `<span class="idbadge" style="color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)" title="Duplicate ID — also used by ${esc(dups.map(interLabel).join(", "))}">⚠ ${hl(i.number,"street")}</span>`
-                             : `<span class="idbadge">${hl(i.number,"street")}</span>`; })():""}
-        ${i.atmsId||i.atmsPort?`<span class="atmsbadge" title="ATMS Station ID and ATMS Port">${i.atmsId?`<span class="al">ATMS Station ID</span> ${hl(i.atmsId,"street")}`:""}${i.atmsId&&i.atmsPort?`<span class="sep">·</span>`:""}${i.atmsPort?`<span class="al">ATMS Port</span> ${esc(i.atmsPort)}`:""}</span>`:""}
+          return dups.length ? `<span class="idbadge" style="color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)" title="Duplicate ID — also used by ${esc(dups.map(interLabel).join(", "))}">⚠ ${hl(i.number)}</span>`
+                             : `<span class="idbadge">${hl(i.number)}</span>`; })():""}
+        ${i.atmsId||i.atmsPort?`<span class="atmsbadge" title="ATMS Station ID and ATMS Port">${i.atmsId?`<span class="al">ATMS Station ID</span> ${hl(i.atmsId)}`:""}${i.atmsId&&i.atmsPort?`<span class="sep">·</span>`:""}${i.atmsPort?`<span class="al">ATMS Port</span> ${esc(i.atmsPort)}`:""}</span>`:""}
         ${i.gps?`<a class="maplink" href="${mapUrl(i.gps)}" target="_blank" rel="noopener" title="${esc(gpsText(i.gps))} — open in Google Maps">📍 Map</a>`:""}
         <span class="count">${filt && devs.length!==i.devices.length ? `${devs.length} of ${i.devices.length} devices match` : `${i.devices.length} device${i.devices.length===1?"":"s"}`}</span>
         <span class="gact">
@@ -1539,11 +1478,11 @@ function render(){
         </span>
       </div>
       <div class="gbody">
-        ${i.notes?`<div class="inotes">${hl(i.notes,"street")}</div>`:""}
+        ${i.notes?`<div class="inotes">${hl(i.notes)}</div>`:""}
         ${devs.length ? `<table>
         <thead><tr>${shownCols().map(c=>`<th>${esc(c.label)}</th>`).join("")}<th></th></tr></thead>
         <tbody>${devs.map(d=>`<tr class="${mobOpen.has(d.id)?"mopen":""}">
-          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span>${devPingDot(d)}<span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(ipShow(d),"ip")}</span></td>
+          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span>${devPingDot(d)}<span class="mname">${hl(d.name)}</span><span class="mip">${hl(ipShow(d))}</span></td>
           ${shownCols().map(c=>c.cell(d,hl)).join("")}
           <td class="act">${can("devices.edit")?`<button class="btn ghost" data-edit="${esc(d.id)}">Edit</button>`:""}</td>
         </tr>`).join("")}</tbody></table>`
@@ -1565,7 +1504,9 @@ function applyWriteMode(){
 
 /* ---------- events ---------- */
 const searchOpen = new Set();      // results opened during the current search
-["#qi","#q","#fStreet","#fType","#fField"].forEach(s=>$(s).addEventListener("input",()=>{ searchOpen.clear(); render(); }));
+let searchTimer = 0;
+const searchNow = ()=>{ clearTimeout(searchTimer); searchTimer = 0; searchOpen.clear(); render(); };
+$("#qi").addEventListener("input", ()=>{ clearTimeout(searchTimer); searchTimer = setTimeout(searchNow, 120); });
 $("#qi").addEventListener("input", ()=>{
   const raw = tidy($("#qi").value);
   const parts = raw ? splitInterQuery(raw).map(x=>isHighway(x) ? fixStreet(x) : x) : [];
@@ -1574,8 +1515,7 @@ $("#qi").addEventListener("input", ()=>{
     : parts.length===2 ? `Looking for ${plainStreet(parts[0])} & ${plainStreet(parts[1])} in either order, including every direction (NB/SB/EB/WB, N/S/E/W).`
     : parts.length===1 ? `Showing every intersection on ${plainStreet(parts[0])}. Add “at” and a cross street to narrow it down.` : "";
 });
-$("#qi").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); $("#q").focus(); } });
-/* Enter in the first box jumps to the second; Tab/Shift+Tab move between them naturally */
+$("#qi").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); searchNow(); if(document.body.classList.contains("mobile")) $("#qi").blur(); } });   // Enter searches at once (and closes a phone's keyboard)
 $("#colBtn").onclick = e=>{ e.stopPropagation(); const m=$("#colMenu"); const open = m.classList.toggle("hidden")===false; if(open) renderColMenu(); $("#colBtn").setAttribute("aria-expanded", open); };
 $("#colMenu").addEventListener("click", e=>e.stopPropagation());
 $("#colMenu").addEventListener("change", e=>{
@@ -1589,7 +1529,7 @@ $("#colMenu").addEventListener("click", e=>{
   saveCols(); renderColMenu(); render();
 });
 document.addEventListener("click", ()=>{ $("#colMenu").classList.add("hidden"); $("#colBtn").setAttribute("aria-expanded", false); });
-$("#clearBtn").onclick = ()=>{ pingFilter = ""; searchOpen.clear(); ["#qi","#q","#fStreet","#fType","#fField"].forEach(s=>$(s).value=""); $("#qiInfo").textContent=""; render(); };
+$("#clearBtn").onclick = ()=>{ pingFilter = ""; searchOpen.clear(); $("#qi").value = ""; clearTimeout(searchTimer); $("#qiInfo").textContent=""; render(); };
 $("#expandAll").onclick = ()=>{ inters.forEach(i=>(isFiltering() ? searchOpen : expanded).add(i.key)); render(); };
 $("#collapseAll").onclick = ()=>{ (isFiltering() ? searchOpen : expanded).clear(); render(); };
 $("#addInterBtn").onclick = ()=>openInter();
@@ -1799,7 +1739,7 @@ $("#pickMap").addEventListener("click", ()=>{
 
 /* intersection IDs compare without capitals, spaces or dashes: "INT-1042" = "int 1042" */
 const idKey = v => String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-const idHolders = (num, exceptKeys=[]) => !idKey(num) ? [] : [...inters.values()].filter(i=>!exceptKeys.includes(i.key) && idKey(i.number)===idKey(num));
+const idHolders = (num, exceptKeys=[]) => !idKey(num) ? [] : (idIndex.get(idKey(num)) || []).filter(i=>!exceptKeys.includes(i.key));
 function showNumWarn(){
   const num = tidy(iform.elements.number.value), others = idHolders(num, [editingInterKey].filter(Boolean));
   $("#numWarn").textContent = others.length ? `⚠ ID ${num} is already used by ${others.map(interLabel).join(", ")}.` : "";
@@ -2137,16 +2077,17 @@ form.addEventListener("submit", async e=>{
   const pool = typePool(d.type), range = pool?.range;
   if(!d.ip && range && !nextFreeIp(range, editingId)) return err.textContent=`No free IPs left in the ${pool.name} pool (${range.text}). Widen the pool or enter an IP manually.`;
   if(!validIp(d.ip)) return err.textContent="Enter a valid IP address (e.g. 10.20.1.15, or 10.20.1.15:8080 with a port).";
-  if(range && !inRange(d.ip, range) && err.dataset.outsideOk!==d.ip){
-    err.dataset.outsideOk = d.ip;
-    return err.textContent = `${d.ip} is outside the ${pool.name} pool for ${d.type} (${range.text}). Press Save again to use it anyway.`;
-  }
   if(!validMac(d.mac)) return err.textContent="MAC should look like 00:1A:2B:3C:4D:5E (or leave blank).";
   d.mac = d.mac.toUpperCase();
   const dup = devices.find(x=>sameEp(x, d.ip, d.port) && x.id!==editingId);
   if(dup) return err.textContent = d.port || dup.port
     ? `${epText(d.ip, d.port)} is already used by “${dup.name}” at ${plainStreet(dup.street1)} & ${plainStreet(dup.street2)}. Devices can share an IP only on different ports.`
     : `IP ${d.ip} is already used by “${dup.name}” at ${plainStreet(dup.street1)} & ${plainStreet(dup.street2)}. Choose another IP (↻ New IP) — or, if both devices really share this IP, add this device's port (e.g. ${d.ip}:8080).`;
+  // definite problems first; the "outside the pool" warning only once nothing else is wrong
+  if(range && !inRange(d.ip, range) && err.dataset.outsideOk!==d.ip){
+    err.dataset.outsideOk = d.ip;
+    return err.textContent = `${d.ip} is outside the ${pool.name} pool for ${d.type} (${range.text}). Press Save again to use it anyway.`;
+  }
   const knownType = [...[...pools.values()].flatMap(p=>p.types), ...devices.map(x=>x.type), ...DEFAULT_TYPES].find(t=>norm(t)===norm(d.type));
   if(knownType) d.type = knownType;
   const place = inter || newInter;
@@ -2241,7 +2182,13 @@ $("#confirmDel").onclick = async ()=>{
 };
 
 document.addEventListener("keydown", e=>{
-  if(e.key==="Escape"){ if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#photoScrim").classList.contains("open")) return closePhoto(); if($("#filesScrim").classList.contains("open")) return closeFiles(); if($("#cfScrim").classList.contains("open")) return closeCfManager(); if($("#printScrim").classList.contains("open")) return closePrint(); if($("#delScrim").classList.contains("open")) return closeConfirm(); if($("#devListScrim").classList.contains("open")) return closeDevList(); if($("#adminScrim").classList.contains("open")) return closeAdmin(); closeEdit(); closeInter(); closePools(); }
+  if(e.key==="Escape"){
+    // close the top-most dialog first
+    const closers = [["#delScrim", closeConfirm], ["#photoScrim", closePhoto], ["#filesScrim", closeFiles], ["#cfScrim", closeCfManager],
+      ["#printScrim", closePrint], ["#myAcctScrim", ()=>$("#myAcctScrim").classList.remove("open")], ["#devListScrim", closeDevList], ["#adminScrim", closeAdmin]];
+    for(const [sel, close] of closers) if($(sel).classList.contains("open")) return close();
+    closeEdit(); closeInter(); closePools();
+  }
   if(e.key==="/" && !["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)){ e.preventDefault(); $("#qi").focus(); }
 });
 ["#editScrim","#interScrim","#delScrim","#poolScrim","#devListScrim","#adminScrim"].forEach(s=>$(s).addEventListener("mousedown",e=>{ if(e.target===$(s)) $(s).classList.remove("open"); }));
@@ -3610,7 +3557,15 @@ pform.addEventListener("submit", async e=>{
 /* ---------- data ---------- */
 function update(){
   if(importing) return;            // one redraw at the end of an import, not one per row
-  rebuild(); refreshOptions(); render();
+  rebuild(); refreshOptions();     // the data is current straight away…
+  if(redrawQueued) return;         // …and the screen is redrawn once for a burst of changes
+  redrawQueued = true;
+  (document.hidden ? setTimeout : requestAnimationFrame)(redraw);
+}
+let redrawQueued = false;
+function redraw(){
+  redrawQueued = false;
+  render();
   if($("#poolScrim").classList.contains("open")){ renderPools(); renderPoolTypes(); }
   if($("#devListScrim").classList.contains("open")) renderDevList();
   if($("#editScrim").classList.contains("open")) fillDevSelect($("#devSel").value);
