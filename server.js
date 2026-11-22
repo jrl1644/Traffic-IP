@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.22-1";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.22-2";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -53,7 +53,7 @@ const Q = {
   delDoc: db.prepare("DELETE FROM docs WHERE coll = ? AND id = ?"),
   allDocs: db.prepare("SELECT coll, id, data FROM docs ORDER BY coll, id"),
   clearDocs: db.prepare("DELETE FROM docs"),
-  ipTaken: db.prepare("SELECT id, data FROM docs WHERE coll = 'devices' AND json_extract(data, '$.ip') = ? AND id <> ? LIMIT 1"),
+  ipUsers: db.prepare("SELECT id, data FROM docs WHERE coll = 'devices' AND json_extract(data, '$.ip') = ? AND id <> ? LIMIT 1000"),
   deviceIps: db.prepare("SELECT DISTINCT json_extract(data, '$.ip') AS ip FROM docs WHERE coll = 'devices'"),
   countColl: db.prepare("SELECT COUNT(*) AS n FROM docs WHERE coll = ?"),
   getUser: db.prepare("SELECT data FROM users WHERE id = ?"),
@@ -409,8 +409,17 @@ function validate(c, id, data) {
     const ip = String(data.ip || "").trim();
     if (!ip) return "A device needs an IP address.";
     data.ip = ip;                                                   // stored trimmed, so the IP index matches exactly
-    const taken = Q.ipTaken.get(ip, id);
-    if (taken) return { conflict: `IP ${ip} is already used by “${parse(taken.data)?.name || "another device"}”. Duplicate IPs aren't allowed.` };
+    // optional port; 80 is the default and isn't stored
+    if (data.port === undefined || data.port === null || String(data.port).trim() === "") delete data.port;
+    else {
+      const n = Number(String(data.port).trim());
+      if (!/^\d{1,5}$/.test(String(data.port).trim()) || n < 1 || n > 65535) return "Port must be a number from 1 to 65535.";
+      if (n === 80) delete data.port; else data.port = String(n);
+    }
+    // devices may share an IP only on different ports (no port = port 80)
+    const port = data.port || "80";
+    const taken = Q.ipUsers.all(ip, id).find(r => (String(parse(r.data)?.port || "") || "80") === port);
+    if (taken) return { conflict: `${ip}${port === "80" ? "" : ":" + port} is already used by “${parse(taken.data)?.name || "another device"}”. Devices can share an IP only on different ports.` };
   }
   return null;
 }

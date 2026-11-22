@@ -1,6 +1,6 @@
 # Traffic-IP
 
-**Version 26.11.22-1** (versions are `YY.MM.DD-revision` and shown next to the logo in the header; earlier releases used `MM.DD.YY-revision`)
+**Version 26.11.22-2** (versions are `YY.MM.DD-revision` and shown next to the logo in the header; earlier releases used `MM.DD.YY-revision`)
 
 Tracks IP-based devices at street intersections: searchable inventory, address pools with automatic IP assignment, a managed Device list, user accounts with roles, and live updates between everyone using it.
 
@@ -77,7 +77,7 @@ Open **⚙ → Admin** (Admins only). Everything that used to be a header button
 
 Everyone can use **⚙ → Account** to change their own password or sign out.
 
-**Roles are enforced by the server.** Someone without permission can't make a change even by bypassing the screens. The server also refuses duplicate IP addresses, even when two people save at the same moment.
+**Roles are enforced by the server.** Someone without permission can't make a change even by bypassing the screens. The server also refuses duplicate IP addresses (devices may share an IP only on different ports), even when two people save at the same moment.
 
 ---
 
@@ -145,7 +145,7 @@ docker compose up -d
 - Live updates stop as soon as a sign-in ends: signing out, an expired session, a password reset, or a disabled or deleted account.
 - Each Docker build applies the latest Alpine security updates. Rebuild regularly (`docker compose build --pull --no-cache && docker compose up -d`) to pick up Node.js and Alpine security fixes.
 - Every change and every sign-in (including failed attempts) is recorded in Admin → Logs.
-- Roles are checked by the server on every change, duplicate IPs are refused by the server, and requests that don't come from the app itself are rejected.
+- Roles are checked by the server on every change, duplicate IPs are refused by the server (unless the devices use different ports), and requests that don't come from the app itself are rejected.
 - Pages are sent with a strict Content-Security-Policy and other protective headers.
 - **First start:** whoever opens the app first creates the owner account. Do that (or set `ADMIN_USERNAME`/`ADMIN_PASSWORD`) **before** making the app reachable by others.
 - Use HTTPS through a reverse proxy for anything beyond your local network. With the default `COOKIE_SECURE=auto`, the sign-in cookie is marked Secure on those HTTPS visits.
@@ -182,8 +182,8 @@ To pin a specific version, change `#main` in `docker-compose.yml` to a tag or co
 
 - **Search first:** the list stays empty until you search. The one **Search** box finds intersections by street (either order, any spelling — "i5 at sr14") and also searches everything else: IP address, device, type, MAC, Intersection ID, ATMS Station ID, notes and custom fields (matching devices are listed under their intersection); a start panel shows how many intersections and devices there are, with **Show all intersections** if you want the full list. Intersections you add or change are listed under it for the rest of the session.
 - **Photos & files:** every intersection bar has a **📎 Files** button (with a count) that shows its photos — tap one for a full-screen viewer — and its documents and other files, which open or download. Anyone who can add devices or edit intersections can upload (drag and drop, choose files, or take a photo on a phone); admins and the uploader can delete. Files are stored in `/data/files`; the size limit is `MAX_UPLOAD_MB` (default 50).
-- **Device ports:** type an IP with a port, like `10.20.0.15:8080`, when the device doesn't use the default port 80. The port shows after the IP (and is copied, searched and printed with it); devices on port 80 show just the IP. Duplicate checks, address pools and the ping check use the IP alone.
-- **Import from Excel:** **Admin → Settings → Import** reads an Excel workbook (.xlsx) or CSV file — one device per row — matches its columns to the app's fields (guessed from the headings), shows a preview with any rows that will be skipped and why, then adds the devices and any new intersections. Duplicate IPs are skipped (or, if you choose, update the existing device); rows without an IP get the next free IP from their pool. An IP can include a port (`10.20.0.15:8080`), or put it in a **Device port** column. **Download a template** gives a ready-made sheet.
+- **Device ports:** type an IP with a port, like `10.20.0.15:8080`, when the device doesn't use the default port 80. The port shows after the IP (and is copied, searched and printed with it); devices on port 80 show just the IP. Devices can share an IP only on different ports (a device with no port counts as port 80), so the duplicate check compares the IP and port together. Address pools and the ping check use the IP alone; a shared IP counts once in a pool.
+- **Import from Excel:** **Admin → Settings → Import** reads an Excel workbook (.xlsx) or CSV file — one device per row — matches its columns to the app's fields (guessed from the headings), shows a preview with any rows that will be skipped and why, then adds the devices and any new intersections. A device whose IP and port are already in the app is skipped (or, if you choose, updates the existing device); rows without an IP get the next free IP from their pool. An IP can include a port (`10.20.0.15:8080`), or put it in a **Device port** column. **Download a template** gives a ready-made sheet.
 - **Custom device fields:** admins open **Add device** (or Edit) and click **⚙ Custom fields…** to add extra fields (text, number, date or dropdown, optionally required) to the Add/Edit device form. Each one can be shown as a column, printed and searched.
 - **Dark mode:** **⚙ → Theme** switches between Light and Dark. Until someone picks, the app starts in whichever the phone or computer uses. The first time someone signs in on a device, they're asked which they prefer. The choice is remembered on each device.
 - **Print:** click **Print** on an intersection bar for a clean page with your icon and the intersection as its heading. Tick which intersection details and device columns to print; your choices are remembered.

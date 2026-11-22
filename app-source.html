@@ -960,7 +960,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.22-1";
+const APP_VERSION = "26.11.22-2";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1178,7 +1178,10 @@ function splitIpPort(v){
   return {ip, port: n === 80 ? "" : String(n)};
 }
 const ipShow = d => d?.ip ? d.ip + (d.port ? ":" + d.port : "") : "";
-const usedInRange = (r, excludeId) => r ? devices.filter(d=>d.id!==excludeId && inRange(d.ip,r)).length : 0;
+/* devices may share an IP only on different ports; no port = port 80 */
+const sameEp = (d, ip, port) => String(d.ip||"").trim() === String(ip||"").trim() && String(d.port || "80") === String(port || "80");
+const epText = (ip, port) => ip + (port && String(port) !== "80" ? ":" + port : "");
+const usedInRange = (r, excludeId) => r ? new Set(devices.filter(d=>d.id!==excludeId && inRange(d.ip,r)).map(d=>String(d.ip).trim())).size : 0;   // a shared IP counts once
 function validIp(ip){
   if (ipNum(ip) !== Infinity && !/^0\d|\.0\d/.test(ip)) return true;
   return /^[0-9a-f:]+$/i.test(ip) && ip.includes(":") && ip.split(":").length<=8 && ip.length>=3;
@@ -1383,8 +1386,8 @@ const fmtDate = v => { if(!v) return ""; const d = new Date(v); return isNaN(d) 
 const COLUMNS = [
   {key:"name",  label:"Device", on:true,  cell:(d,hl)=>`<td data-l="Device"><span class="devname">${devPingDot(d)}<strong>${hl(d.name,"name")}</strong></span></td>`},
   {key:"type",  label:"Type",        on:true,  cell:(d,hl)=>`<td data-l="Type"><span class="type">${hl(d.type,"type")}</span></td>`},
-  {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(ipShow(d))}" title="Click to copy">${hl(ipShow(d),"ip")}</span>${(()=>{ const twin = devices.find(x=>x.ip===d.ip && x.id!==d.id);
-    return twin ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="Also used by ${esc(twin.name)} at ${esc(plainStreet(twin.street1))} & ${esc(plainStreet(twin.street2))}">⚠ duplicate IP — fix needed</small>` : ""; })()}${(()=>{ const tp=typePool(d.type); return tp?.range && !inRange(d.ip,tp.range) ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="${esc(d.type)} IPs normally come from ${esc(tp.name)} (${esc(tp.range.text)})">outside ${esc(tp.name)} pool</small>` : ""; })()}</td>`},
+  {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(ipShow(d))}" title="Click to copy">${hl(ipShow(d),"ip")}</span>${(()=>{ const twin = devices.find(x=>sameEp(x, d.ip, d.port) && x.id!==d.id);
+    return twin ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="Also used by ${esc(twin.name)} at ${esc(plainStreet(twin.street1))} & ${esc(plainStreet(twin.street2))}">⚠ duplicate IP and port — fix needed</small>` : ""; })()}${(()=>{ const tp=typePool(d.type); return tp?.range && !inRange(d.ip,tp.range) ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="${esc(d.type)} IPs normally come from ${esc(tp.name)} (${esc(tp.range.text)})">outside ${esc(tp.name)} pool</small>` : ""; })()}</td>`},
   {key:"mac",   label:"MAC",         on:true,  cell:(d,hl)=>`<td class="mac" data-l="MAC">${d.mac?hl(d.mac,"mac"):dash}</td>`},
   {key:"notes", label:"Notes",       on:true,  cell:(d,hl)=>`<td class="notes" data-l="Notes">${d.notes?hl(d.notes,"notes"):""}</td>`},
   {key:"created", label:"Added",     on:false, cell:d=>`<td data-l="Added" style="white-space:nowrap">${fmtDate(d.created)||dash}</td>`},
@@ -1934,8 +1937,11 @@ function setFormIp(ip){ const p = formIpParts(); form.elements.ip.value = ip ? i
 function updateIpHint(){
   const type = curType(), pool = typePool(type), r = pool?.range, hint = $("#ipHint"), ip = formIp();
   hint.style.color = "";
-  const taken = ip && devices.find(x=>x.ip===ip && x.id!==editingId);
-  if(taken){ hint.textContent = `Already used by ${taken.name} at ${plainStreet(taken.street1)} & ${plainStreet(taken.street2)} — choose another IP.`; hint.style.color="var(--danger)"; return; }
+  const fport = formIpParts().port;
+  const taken = ip && devices.find(x=>sameEp(x, ip, fport) && x.id!==editingId);
+  if(taken){ hint.textContent = `${epText(ip, fport)} is already used by ${taken.name} at ${plainStreet(taken.street1)} & ${plainStreet(taken.street2)} — choose another IP, or add a different port (e.g. ${ip}:8080) if they share this IP.`; hint.style.color="var(--danger)"; return; }
+  const sharers = ip ? devices.filter(x=>x.id!==editingId && String(x.ip).trim()===ip) : [];
+  if(sharers.length){ hint.textContent = `Shares this IP with ${sharers.slice(0,3).map(x=>`${x.name} (${x.port ? "port " + x.port : "port 80"})`).join(", ")}${sharers.length>3 ? ` +${sharers.length-3} more` : ""}.`; return; }
   if(!type){ hint.textContent = "Pick a device type to get its next free IP."; return; }
   if(!r){ hint.textContent = `No pool for ${type} — enter the IP, or link this type to a pool under Address pools.`; return; }
   const used = usedInRange(r, editingId), size = rangeSize(r);
@@ -1945,7 +1951,7 @@ function updateIpHint(){
 }
 function autoFillIp(){
   const r = deviceFormRange(), cur = formIp();
-  if(r && (!cur || cur===lastAutoIp || !inRange(cur, r) || devices.some(d=>d.id!==editingId && d.ip===cur))){
+  if(r && (!cur || cur===lastAutoIp || !inRange(cur, r) || devices.some(d=>d.id!==editingId && sameEp(d, cur, formIpParts().port)))){
     const next = nextFreeIp(r, editingId, skippedIps) || "";
     setFormIp(next); lastAutoIp = next;
   } else if(!r && cur && cur===lastAutoIp){ setFormIp(""); lastAutoIp=""; }
@@ -2036,14 +2042,14 @@ async function freshDevices(){
 async function confirmIp(d, range, wasAuto, editingId){
   await takeIpTurn();
   const all = await freshDevices();
-  const holder = all.find(x=>x.ip===d.ip && x.id!==editingId);
+  const holder = all.find(x=>sameEp(x, d.ip, d.port) && x.id!==editingId);
   if(!holder) return {ip:d.ip};
   if(wasAuto && range){
     const used = new Set(all.filter(x=>x.id!==editingId).map(x=>ipNum(x.ip)));
     for(let n=range.s; n<=range.e; n++) if(!used.has(n)) return {ip:numToIp(n), note:`${d.ip} was just taken by ${holder.name} — saved as ${numToIp(n)} instead.`};
     return {error:`${d.ip} was just taken by ${holder.name}, and there are no other free IPs in the pool.`};
   }
-  return {error:`${d.ip} was just saved for “${holder.name}” at ${plainStreet(holder.street1)} & ${plainStreet(holder.street2)} by someone else. Duplicate IPs aren't allowed — choose another IP (↻ New IP).`};
+  return {error:`${d.ip} was just saved for “${holder.name}” at ${plainStreet(holder.street1)} & ${plainStreet(holder.street2)} by someone else. Choose another IP (↻ New IP), or a different port if they share this IP.`};
 }
 
 form.addEventListener("submit", async e=>{
@@ -2080,8 +2086,10 @@ form.addEventListener("submit", async e=>{
   }
   if(!validMac(d.mac)) return err.textContent="MAC should look like 00:1A:2B:3C:4D:5E (or leave blank).";
   d.mac = d.mac.toUpperCase();
-  const dup = devices.find(x=>x.ip===d.ip && x.id!==editingId);
-  if(dup) return err.textContent = `IP ${d.ip} is already used by “${dup.name}” at ${plainStreet(dup.street1)} & ${plainStreet(dup.street2)}. Duplicate IPs aren't allowed — choose another IP (↻ New IP).`;
+  const dup = devices.find(x=>sameEp(x, d.ip, d.port) && x.id!==editingId);
+  if(dup) return err.textContent = d.port || dup.port
+    ? `${epText(d.ip, d.port)} is already used by “${dup.name}” at ${plainStreet(dup.street1)} & ${plainStreet(dup.street2)}. Devices can share an IP only on different ports.`
+    : `IP ${d.ip} is already used by “${dup.name}” at ${plainStreet(dup.street1)} & ${plainStreet(dup.street2)}. Choose another IP (↻ New IP) — or, if both devices really share this IP, add this device's port (e.g. ${d.ip}:8080).`;
   const knownType = [...[...pools.values()].flatMap(p=>p.types), ...devices.map(x=>x.type), ...DEFAULT_TYPES].find(t=>norm(t)===norm(d.type));
   if(knownType) d.type = knownType;
   const place = inter || newInter;
@@ -2888,7 +2896,7 @@ function impRenderMap(){
 function impPlan(){
   const m = imp.map, get = (r, k) => m[k] === undefined ? "" : tidy(String(r.cells[m[k]] ?? ""));
   const dupMode = $("#impDup").value;
-  const ipOwner = new Map(devices.map(d => [String(d.ip).trim(), d]));
+  const ipOwner = new Map(devices.map(d => [String(d.ip).trim() + ":" + (d.port || "80"), d]));   // keyed by IP + port
   const seenIp = new Map(), skipNums = new Set();
   const newInters = new Map(), interUpdates = new Map();
   const knownTypes = [...[...pools.values()].flatMap(p => p.types), ...devices.map(x => x.type), ...DEFAULT_TYPES];
@@ -2941,10 +2949,11 @@ function impPlan(){
       ip = nip; r.autoIp = true;
     }
     if(!validIp(ip)){ problems.push({n: r.n, why: `“${ip}” isn't a valid IP address`}); continue; }
-    if(seenIp.has(ip)){ problems.push({n: r.n, why: `IP ${ip} is also on row ${seenIp.get(ip)} of the file`}); continue; }
+    if(portBad){ problems.push({n: r.n, why: `Port isn't 1–65535 (left off, so the default 80 is used)`, warn: true}); port = ""; portBad = ""; }
+    const ep = ip + ":" + (port || "80");
+    if(seenIp.has(ep)){ problems.push({n: r.n, why: `${epText(ip, port)} is also on row ${seenIp.get(ep)} of the file`}); continue; }
     let mac = get(r, "mac");
     if(mac && !validMac(mac)){ problems.push({n: r.n, why: `MAC “${mac}” isn't valid (left blank)`, warn: true}); mac = ""; }
-    if(portBad){ problems.push({n: r.n, why: `Port isn't 1–65535 (left off, so the default 80 is used)`, warn: true}); port = ""; }
     const dev = {name, type, ip, mac: mac.toUpperCase(), notes: get(r, "notes"), street1: place.street1, street2: place.street2};
     if(port) dev.port = port;
     const custom = {};
@@ -2955,11 +2964,11 @@ function impPlan(){
       custom[f.id] = v;
     }
     if(Object.keys(custom).length) dev.custom = custom;
-    const owner = ipOwner.get(ip);
-    seenIp.set(ip, r.n); skipNums.add(ipNum(ip));
+    const owner = ipOwner.get(ep);
+    seenIp.set(ep, r.n); skipNums.add(ipNum(ip));
     if(owner){
       if(dupMode === "update"){ useInter(); updates.push({row: r.n, id: owner.id, prev: owner, dev}); }
-      else problems.push({n: r.n, why: `IP ${ip} is already used by ${owner.name} at ${plainStreet(owner.street1)} & ${plainStreet(owner.street2)} (skipped)`});
+      else problems.push({n: r.n, why: `${epText(ip, port)} is already used by ${owner.name} at ${plainStreet(owner.street1)} & ${plainStreet(owner.street2)} (skipped)`});
       continue;
     }
     useInter();
