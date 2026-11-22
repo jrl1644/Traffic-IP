@@ -1,5 +1,5 @@
 // Traffic-IP — standalone server
-const VERSION = "26.11.20-2";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
+const VERSION = "26.11.22-1";   // YY.MM.DD-revision — keep in step with APP_VERSION in app-source.html
 // No external dependencies: Node.js 22.5+ built-ins only (storage uses the built-in node:sqlite).
 "use strict";
 const http = require("http");
@@ -117,7 +117,7 @@ function saveUser(u) { const { _token, ...data } = u; Q.putUser.run(data.id, dat
 
 /* ------------------------------------------------------------------ change log
    Who changed what, and when. Kept for CHANGELOG_DAYS (default 365). Images (logos) are left out. */
-const FIELD_LABEL = { ip: "IP", name: "Device", type: "Type", mac: "MAC", notes: "Notes", street1: "Street 1", street2: "Street 2",
+const FIELD_LABEL = { ip: "IP", port: "Port", name: "Device", type: "Type", mac: "MAC", notes: "Notes", street1: "Street 1", street2: "Street 2",
   number: "Intersection ID", atmsId: "ATMS Station ID", atmsPort: "ATMS Port", bannerColor: "Banner color", lat: "Latitude", lon: "Longitude", range: "IP range", types: "Device types" };
 const SKIP_FIELDS = new Set(["created", "updated", "id"]);
 const where = d => d && (d.street1 || d.street2) ? ` at ${d.street1 || "?"} & ${d.street2 || "?"}` : "";

@@ -592,7 +592,7 @@
       </div>
       <label class="f">IP address
         <span style="display:flex;gap:6px">
-          <input name="ip" placeholder="10.20.1.15" style="font-family:var(--mono)">
+          <input name="ip" placeholder="10.20.1.15 or 10.20.1.15:8080" title="Add :port only when it isn't the default port 80" style="font-family:var(--mono)">
           <button type="button" class="btn" id="newIpBtn" title="Discard this IP and pull the next free one from the pool" style="white-space:nowrap">↻ New IP</button>
         </span>
         <span class="hint" id="ipHint"></span>
@@ -783,7 +783,7 @@
 
       <div class="subpane hidden" data-subpane="import">
       <h3 class="settinghead">Import from Excel</h3>
-      <p class="hint" style="margin:0 0 10px;font-size:14px">Add devices and intersections from an Excel workbook (.xlsx) or a CSV file — one device per row, with columns for the two streets (or one “Main St &amp; 1st Ave” column), device, type and IP. Other columns are optional. The file is read in your browser; nothing is changed until you press Import.</p>
+      <p class="hint" style="margin:0 0 10px;font-size:14px">Add devices and intersections from an Excel workbook (.xlsx) or a CSV file — one device per row, with columns for the two streets (or one “Main St &amp; 1st Ave” column), device, type and IP. An IP can include a port (10.20.0.15:8080); leave it off for the default port 80. Other columns are optional. The file is read in your browser; nothing is changed until you press Import.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <label class="btn primary" style="cursor:pointer">Choose Excel or CSV file…<input type="file" id="impFile" accept=".xlsx,.xlsm,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden></label>
         <button type="button" class="btn ghost" id="impTemplate">Download a template</button>
@@ -968,7 +968,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.20-2";
+const APP_VERSION = "26.11.22-1";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1176,6 +1176,16 @@ function nextFreeIp(r, excludeId, skip){
   for(let n=r.s; n<=r.e; n++) if(!used.has(n) && !(skip && skip.has(n))) return numToIp(n);
   return null;
 }
+function splitIpPort(v){
+  const t = tidy(v), m = /^([^:]*):(\s*\d*\s*)$/.exec(t);
+  if(!m) return {ip: t, port: "", bad: t.includes(":") ? "port" : ""};
+  const ip = tidy(m[1]), raw = m[2].trim();
+  if(raw === "") return {ip, port: ""};
+  const n = +raw;
+  if(!/^\d{1,5}$/.test(raw) || n < 1 || n > 65535) return {ip, port: "", bad: "port"};
+  return {ip, port: n === 80 ? "" : String(n)};
+}
+const ipShow = d => d?.ip ? d.ip + (d.port ? ":" + d.port : "") : "";
 const usedInRange = (r, excludeId) => r ? devices.filter(d=>d.id!==excludeId && inRange(d.ip,r)).length : 0;
 function validIp(ip){
   if (ipNum(ip) !== Infinity && !/^0\d|\.0\d/.test(ip)) return true;
@@ -1246,9 +1256,9 @@ const interText = i => [i.street1,i.street2,i.number,i.atmsId,i.notes,gpsText(i.
 const typePool = type => !type ? null : [...pools.values()].find(p=>p.types.some(t=>norm(t)===norm(type))) || null;
 function devText(d,f){
   switch(f){
-    case "ip": return d.ip; case "name": return d.name; case "type": return d.type;
+    case "ip": return ipShow(d); case "name": return d.name; case "type": return d.type;
     case "mac": return d.mac||""; case "notes": return d.notes||"";
-    default: return [d.ip,d.name,d.type,d.mac,d.notes,...customFields.map(f=>cfShow(d,f))].join(" ");
+    default: return [ipShow(d),d.name,d.type,d.mac,d.notes,...customFields.map(f=>cfShow(d,f))].join(" ");
   }
 }
 /* words from the search box, for "search everything" matching and highlighting ("at", "&"… are left out) */
@@ -1323,8 +1333,8 @@ function filtered(){
       const iHay = norm(interText(i)) + " " + compact(i.street1) + " " + compact(i.street2);   // "i5" finds "I-5"
       const interHit = gterms.length && gterms.every(t=>iHay.includes(t));
       if(!streetHit && !interHit){
-        const exactIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(qiText) ? qiText : "";     // a whole IP finds that device, not 10.20.0.150 for 10.20.0.1
-        devs = exactIp ? devs.filter(d=>String(d.ip||"").trim()===exactIp)
+        const exactIp = /^\d{1,3}(\.\d{1,3}){3}(:\d{1,5})?$/.test(qiText) ? qiText : "";     // a whole IP finds that device, not 10.20.0.150 for 10.20.0.1
+        devs = exactIp ? devs.filter(d=>exactIp.includes(":") ? ipShow(d)===exactIp || (exactIp.endsWith(":80") && ipShow(d)===exactIp.slice(0,-3)) : String(d.ip||"").trim()===exactIp)
                        : devs.filter(d=>{ const h = norm(devText(d,"")) + " " + iHay; return gterms.length && gterms.every(t=>h.includes(t)); });
         if(!devs.length) continue;
       }
@@ -1381,7 +1391,7 @@ const fmtDate = v => { if(!v) return ""; const d = new Date(v); return isNaN(d) 
 const COLUMNS = [
   {key:"name",  label:"Device", on:true,  cell:(d,hl)=>`<td data-l="Device"><span class="devname">${devPingDot(d)}<strong>${hl(d.name,"name")}</strong></span></td>`},
   {key:"type",  label:"Type",        on:true,  cell:(d,hl)=>`<td data-l="Type"><span class="type">${hl(d.type,"type")}</span></td>`},
-  {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(d.ip)}" title="Click to copy">${hl(d.ip,"ip")}</span>${(()=>{ const twin = devices.find(x=>x.ip===d.ip && x.id!==d.id);
+  {key:"ip",    label:"IP address",  on:true,  cell:(d,hl)=>`<td class="ip" data-l="IP"><span class="ipcopy" data-copy="${esc(ipShow(d))}" title="Click to copy">${hl(ipShow(d),"ip")}</span>${(()=>{ const twin = devices.find(x=>x.ip===d.ip && x.id!==d.id);
     return twin ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="Also used by ${esc(twin.name)} at ${esc(plainStreet(twin.street1))} & ${esc(plainStreet(twin.street2))}">⚠ duplicate IP — fix needed</small>` : ""; })()}${(()=>{ const tp=typePool(d.type); return tp?.range && !inRange(d.ip,tp.range) ? `<br><small style="color:var(--danger);font-family:var(--sans)" title="${esc(d.type)} IPs normally come from ${esc(tp.name)} (${esc(tp.range.text)})">outside ${esc(tp.name)} pool</small>` : ""; })()}</td>`},
   {key:"mac",   label:"MAC",         on:true,  cell:(d,hl)=>`<td class="mac" data-l="MAC">${d.mac?hl(d.mac,"mac"):dash}</td>`},
   {key:"notes", label:"Notes",       on:true,  cell:(d,hl)=>`<td class="notes" data-l="Notes">${d.notes?hl(d.notes,"notes"):""}</td>`},
@@ -1535,7 +1545,7 @@ function render(){
         ${devs.length ? `<table>
         <thead><tr>${shownCols().map(c=>`<th>${esc(c.label)}</th>`).join("")}<th></th></tr></thead>
         <tbody>${devs.map(d=>`<tr class="${mobOpen.has(d.id)?"mopen":""}">
-          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span>${devPingDot(d)}<span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(d.ip,"ip")}</span></td>
+          <td class="msum" data-mtoggle="${esc(d.id)}" role="button" aria-expanded="${mobOpen.has(d.id)}"><span class="mcaret">▸</span>${devPingDot(d)}<span class="mname">${hl(d.name,"name")}</span><span class="mip">${hl(ipShow(d),"ip")}</span></td>
           ${shownCols().map(c=>c.cell(d,hl)).join("")}
           <td class="act">${can("devices.edit")?`<button class="btn ghost" data-edit="${esc(d.id)}">Edit</button>`:""}</td>
         </tr>`).join("")}</tbody></table>`
@@ -1615,7 +1625,7 @@ $("#list").addEventListener("click", e=>{
 /* ---------- print one intersection ---------- */
 const PRINT_KEY = "traffic-ip-print-columns";
 const PRINT_VAL = {
-  name: d => d.name, type: d => d.type, ip: d => d.ip, pool: d => typePool(d.type)?.name || "",
+  name: d => d.name, type: d => d.type, ip: d => ipShow(d), pool: d => typePool(d.type)?.name || "",
   mac: d => d.mac, notes: d => d.notes, created: d => fmtDate(d.created), updated: d => fmtDate(d.updated),
 };
 let printInter = null;
@@ -1925,8 +1935,12 @@ $("#typeSel").addEventListener("change", ()=>{
 });
 $("#typeOther").addEventListener("input", autoFillIp);
 function deviceFormRange(){ return typePool(curType())?.range || null; }
+/* IP field: "10.20.1.15" or "10.20.1.15:8080". Port 80 is the default, so it's never stored or shown. */
+const formIpParts = () => splitIpPort(form.elements.ip.value);
+const formIp = () => formIpParts().ip;
+function setFormIp(ip){ const p = formIpParts(); form.elements.ip.value = ip ? ip + (p.port ? ":" + p.port : "") : ""; }
 function updateIpHint(){
-  const type = curType(), pool = typePool(type), r = pool?.range, hint = $("#ipHint"), ip = tidy(form.elements.ip.value);
+  const type = curType(), pool = typePool(type), r = pool?.range, hint = $("#ipHint"), ip = formIp();
   hint.style.color = "";
   const taken = ip && devices.find(x=>x.ip===ip && x.id!==editingId);
   if(taken){ hint.textContent = `Already used by ${taken.name} at ${plainStreet(taken.street1)} & ${plainStreet(taken.street2)} — choose another IP.`; hint.style.color="var(--danger)"; return; }
@@ -1938,24 +1952,24 @@ function updateIpHint(){
   hint.textContent = (ip && ip===lastAutoIp ? "Next free IP · " : "") + `${pool.name} pool ${r.text} · ${used}/${size} used`;
 }
 function autoFillIp(){
-  const r = deviceFormRange(), cur = tidy(form.elements.ip.value);
+  const r = deviceFormRange(), cur = formIp();
   if(r && (!cur || cur===lastAutoIp || !inRange(cur, r) || devices.some(d=>d.id!==editingId && d.ip===cur))){
     const next = nextFreeIp(r, editingId, skippedIps) || "";
-    form.elements.ip.value = next; lastAutoIp = next;
-  } else if(!r && cur && cur===lastAutoIp){ form.elements.ip.value=""; lastAutoIp=""; }
+    setFormIp(next); lastAutoIp = next;
+  } else if(!r && cur && cur===lastAutoIp){ setFormIp(""); lastAutoIp=""; }
   updateIpHint();
 }
 $("#newIpBtn").onclick = ()=>{
   const type = curType(), pool = typePool(type), r = pool?.range, hint = $("#ipHint");
   if(!r){ updateIpHint(); hint.style.color="var(--danger)"; if(!type) hint.textContent="Pick a device type first."; return; }
-  const cur = tidy(form.elements.ip.value);
+  const cur = formIp();
   if(ipNum(cur)!==Infinity) skippedIps.add(ipNum(cur));
   const next = nextFreeIp(r, editingId, skippedIps);
   if(!next){
     hint.textContent = `No other free IPs in the ${pool.name} pool.`; hint.style.color="var(--danger)";
     return;
   }
-  form.elements.ip.value = next; lastAutoIp = next;
+  setFormIp(next); lastAutoIp = next;
   delete $("#ferr").dataset.outsideOk; $("#ferr").textContent = "";
   updateIpHint();
   const gone = [...skippedIps].sort((a,b)=>a-b).map(numToIp);
@@ -1970,7 +1984,7 @@ function openEdit(dev, presetKey){
   $("#editTitle").textContent = dev ? "Edit device" : "Add device";
   $("#delDevBtn").classList.toggle("hidden", !(dev && can("devices.remove")));
   $("#saveAddBtn").classList.toggle("hidden", !!dev);
-  ["street1","street2","ip","mac","notes"].forEach(f=>form.elements[f].value = (dev && !["street1","street2"].includes(f)) ? (dev[f]||"") : "");
+  ["street1","street2","ip","mac","notes"].forEach(f=>form.elements[f].value = (dev && !["street1","street2"].includes(f)) ? (f==="ip" ? ipShow(dev) : (dev[f]||"")) : "");
   fillTypeSelect(dev?.type || "");
   $("#typeHint").textContent = "";
   $("#newDevName").value = "";
@@ -2045,7 +2059,9 @@ form.addEventListener("submit", async e=>{
   const wantAnother = addAnother; addAnother = false;
   const err = $("#ferr");
   const d = {};
-  ["name","ip","mac"].forEach(f=>d[f]=tidy(form.elements[f].value));
+  ["name","mac"].forEach(f=>d[f]=tidy(form.elements[f].value));
+  const ipp = formIpParts(); d.ip = ipp.ip; if(ipp.port) d.port = ipp.port;
+  if(ipp.bad) return err.textContent = "The port after the IP must be a number from 1 to 65535 (e.g. 10.20.1.15:8080). Leave it off for the default port 80.";
   d.type = curType();
   d.notes = String(form.elements.notes.value||"").trim();
   { const cf = readCfInputs(editingId ? devices.find(x=>x.id===editingId)?.custom : null);
@@ -2065,7 +2081,7 @@ form.addEventListener("submit", async e=>{
   if(!d.type) return err.textContent="Choose a device type, or pick “+ New type…” to add one.";
   const pool = typePool(d.type), range = pool?.range;
   if(!d.ip && range && !nextFreeIp(range, editingId)) return err.textContent=`No free IPs left in the ${pool.name} pool (${range.text}). Widen the pool or enter an IP manually.`;
-  if(!validIp(d.ip)) return err.textContent="Enter a valid IP address (e.g. 10.20.1.15).";
+  if(!validIp(d.ip)) return err.textContent="Enter a valid IP address (e.g. 10.20.1.15, or 10.20.1.15:8080 with a port).";
   if(range && !inRange(d.ip, range) && err.dataset.outsideOk!==d.ip){
     err.dataset.outsideOk = d.ip;
     return err.textContent = `${d.ip} is outside the ${pool.name} pool for ${d.type} (${range.text}). Press Save again to use it anyway.`;
@@ -2092,7 +2108,7 @@ form.addEventListener("submit", async e=>{
         err.textContent = res.error;
         return;
       }
-      if(res.ip!==d.ip){ d.ip = res.ip; form.elements.ip.value = res.ip; lastAutoIp = res.ip; }
+      if(res.ip!==d.ip){ d.ip = res.ip; setFormIp(res.ip); lastAutoIp = res.ip; }
       if(res.note) setTimeout(()=>toast(res.note), 1200);
       btn.textContent = "Saving…";
     }
@@ -2135,7 +2151,7 @@ $("#verifyInput").addEventListener("input", ()=>{ $("#confirmDel").disabled = $(
 $("#verifyInput").addEventListener("keydown", e=>{ if(e.key==="Enter" && !$("#confirmDel").disabled){ e.preventDefault(); $("#confirmDel").click(); } });
 function confirmDeleteDevice(id){
   const d = devices.find(x=>x.id===id); if(!d) return;
-  openConfirm("Remove device?", `Remove <strong>${esc(d.name)}</strong> (${esc(d.ip)}) from ${esc(plainStreet(d.street1))} &amp; ${esc(plainStreet(d.street2))}? This can't be undone.`, "Remove device",
+  openConfirm("Remove device?", `Remove <strong>${esc(d.name)}</strong> (${esc(ipShow(d))}) from ${esc(plainStreet(d.street1))} &amp; ${esc(plainStreet(d.street2))}? This can't be undone.`, "Remove device",
     async ()=>{ await db.collection("devices").doc(id).delete(); closeEdit(); toast("Device removed"); });
 }
 $("#delInterBtn").onclick = ()=>{ if(editingInterKey) confirmDeleteInter(editingInterKey); };
@@ -2806,7 +2822,8 @@ const IMP_FIELDS = () => [
   {key:"street2",  label:"Street 2", re:/^(street ?2|cross ?street|cross|at street|at|secondary street|intersecting street|cross road)$/},
   {key:"name",     label:"Device", re:/^(device|device name|name|equipment|model|device model)$/},
   {key:"type",     label:"Device type", re:/^(type|device type|category|equipment type|device category)$/},
-  {key:"ip",       label:"IP address", re:/^(ip|ip ?address|ipv4|ip addr|address ip)$/},
+  {key:"ip",       label:"IP address (port optional, e.g. 10.20.0.15:8080)", re:/^(ip|ip ?address|ipv4|ip addr|address ip)$/},
+  {key:"devPort",  label:"Device port", re:/^(device port|ip port|http port|web port)$/},
   {key:"mac",      label:"MAC", re:/^(mac|mac ?address)$/},
   {key:"notes",    label:"Device notes", re:/^(notes?|device notes?|comments?|description|remarks)$/},
   {key:"number",   label:"Intersection ID", re:/^(intersection ?id|int ?id|intersection ?(no|number|#)|signal ?id|id)$/},
@@ -2918,6 +2935,9 @@ function impPlan(){
     const place = existing || newInters.get(key) || {street1: s1, street2: s2};
     // the device on this row
     const name = get(r, "name"); let ip = get(r, "ip");
+    const ipp = splitIpPort(ip); ip = ipp.ip;
+    let port = ipp.port, portBad = ipp.bad;
+    { const cp = get(r, "devPort"); if(cp && !ipp.port && !ipp.bad){ const q = splitIpPort("x:" + cp); port = q.port; portBad = q.bad; } }
     if(!hasDeviceCols || (!name && !ip)){ useInter(); interOnly++; continue; }
     let type = get(r, "type") || "Other";
     type = knownTypes.find(t => norm(t) === norm(type)) || type;
@@ -2932,7 +2952,9 @@ function impPlan(){
     if(seenIp.has(ip)){ problems.push({n: r.n, why: `IP ${ip} is also on row ${seenIp.get(ip)} of the file`}); continue; }
     let mac = get(r, "mac");
     if(mac && !validMac(mac)){ problems.push({n: r.n, why: `MAC “${mac}” isn't valid (left blank)`, warn: true}); mac = ""; }
+    if(portBad){ problems.push({n: r.n, why: `Port isn't 1–65535 (left off, so the default 80 is used)`, warn: true}); port = ""; }
     const dev = {name, type, ip, mac: mac.toUpperCase(), notes: get(r, "notes"), street1: place.street1, street2: place.street2};
+    if(port) dev.port = port;
     const custom = {};
     for(const f of customFields){
       let v = get(r, "cf_" + f.id); if(!v) continue;
@@ -2969,7 +2991,7 @@ function impRenderPlan(){
     <div class="impprob">${p.problems.slice(0, 200).map(x => `<div class="${x.warn ? "warn" : ""}"><span>Row ${x.n}</span> ${esc(x.why)}</div>`).join("")}${p.problems.length > 200 ? `<div>…and ${p.problems.length - 200} more</div>` : ""}</div>` : "";
   const sample = [...p.adds, ...p.updates].slice(0, 8);
   $("#impPreview").innerHTML = sample.length ? `<table class="imptable"><thead><tr><th>Row</th><th>Intersection</th><th>Device</th><th>Type</th><th>IP</th></tr></thead><tbody>${
-    sample.map(a => `<tr><td>${a.row}</td><td>${esc(plainStreet(a.dev.street1))} &amp; ${esc(plainStreet(a.dev.street2))}</td><td>${esc(a.dev.name)}</td><td>${esc(a.dev.type)}</td><td class="ip">${esc(a.dev.ip)}${a.autoIp ? ' <span class="hint">(auto)</span>' : ""}${a.id ? ' <span class="hint">(update)</span>' : ""}</td></tr>`).join("")}</tbody></table>${p.adds.length + p.updates.length > sample.length ? `<div class="hint" style="margin-top:4px">First ${sample.length} of ${p.adds.length + p.updates.length} shown.</div>` : ""}` : "";
+    sample.map(a => `<tr><td>${a.row}</td><td>${esc(plainStreet(a.dev.street1))} &amp; ${esc(plainStreet(a.dev.street2))}</td><td>${esc(a.dev.name)}</td><td>${esc(a.dev.type)}</td><td class="ip">${esc(ipShow(a.dev))}${a.autoIp ? ' <span class="hint">(auto)</span>' : ""}${a.id ? ' <span class="hint">(update)</span>' : ""}</td></tr>`).join("")}</tbody></table>${p.adds.length + p.updates.length > sample.length ? `<div class="hint" style="margin-top:4px">First ${sample.length} of ${p.adds.length + p.updates.length} shown.</div>` : ""}` : "";
   $("#impStep3").classList.remove("hidden");
   $("#impGo").disabled = !(p.adds.length || p.updates.length || p.newInters.size || p.interUpdates.size);
 }
@@ -3008,8 +3030,8 @@ async function impRun(){
 }
 /* a template with the right headings (opens in Excel) */
 async function impTemplate(){
-  const heads = ["Street 1","Street 2","Device","Device type","IP address","MAC","Device notes","Intersection ID","ATMS Station ID","ATMS Port","GPS", ...customFields.map(f => f.label)];
-  const ex = ["Main St","1st Ave","Axis P1375","Camera","10.20.0.15","00:40:8C:12:34:56","NE corner","INT-101","1042","10001","45.6201, -122.6702"];
+  const heads = ["Street 1","Street 2","Device","Device type","IP address","Device port","MAC","Device notes","Intersection ID","ATMS Station ID","ATMS Port","GPS", ...customFields.map(f => f.label)];
+  const ex = ["Main St","1st Ave","Axis P1375","Camera","10.20.0.15","","00:40:8C:12:34:56","NE corner","INT-101","1042","10001","45.6201, -122.6702"];
   const q = v => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   const csv = "﻿" + [heads, ex].map(r => r.map(c => q(String(c ?? ""))).join(",")).join("\r\n") + "\r\n";
   if(window.__STANDALONE){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"})); a.download = "traffic-ip-import-template.csv"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); return; }
