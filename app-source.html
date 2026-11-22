@@ -963,7 +963,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.22-5";
+const APP_VERSION = "26.11.22-6";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1843,6 +1843,34 @@ async function saveInterDoc(v, docId){
   return key;
 }
 
+/* move one intersection's devices and files into another that already exists, then remove the old one */
+async function mergeInter(old, into, v){
+  const err = $("#ierr"), btn = $("#saveInter");
+  btn.disabled = true; btn.textContent = "Moving…";
+  try{
+    const now = new Date().toISOString();
+    // the existing intersection keeps its details; blanks are filled from the form
+    const keep = {street1:into.street1, street2:into.street2, number:into.number || v.number, atmsId:into.atmsId || v.atmsId,
+      atmsPort:into.atmsPort || v.atmsPort, notes:into.notes || v.notes, gps:into.gps || v.gps};
+    if(keep.number && keep.number===v.number && !into.number){
+      const others = idHolders(keep.number, [old.key, into.key]); if(others.length) keep.number = "";   // don't create a duplicate ID
+    }
+    await saveInterDoc(keep, into.docId || null);
+    for(const d of old.devices){
+      const {id, ...rest} = d;
+      await db.collection("devices").doc(id).set({...rest, street1:into.street1, street2:into.street2, updated:now});
+    }
+    for(const f of (filesMap.get(old.key)||[])){ const {id, ...rest} = f; await db.collection("files").doc(id).set({...rest, inter:into.key, label:interLabel(into)}); }
+    if(old.docId && old.docId!==into.docId && old.docId!==interDocId(into.key)) await db.collection("intersections").doc(old.docId).delete();
+    expanded.delete(old.key); searchOpen.delete(old.key);
+    expanded.add(into.key); searchOpen.add(into.key); touchRecent(into.key);
+    const n = old.devices.length;
+    toast(`Moved ${n} device${n===1?"":"s"} to ${interLabel(into)} and removed ${interLabel(old)}`);
+    closeInter();
+  }catch(ex){ err.textContent = writeError(ex); }
+  finally{ btn.disabled = false; btn.textContent = "Save intersection"; }
+}
+
 iform.addEventListener("submit", async e=>{
   e.preventDefault();
   const v = {street1:joinDir(iform.elements.dir1.value, iform.elements.street1.value), street2:joinDir(iform.elements.dir2.value, iform.elements.street2.value), number:tidy(iform.elements.number.value).toUpperCase(), atmsId:tidy(iform.elements.atmsId.value), atmsPort:tidy(iform.elements.atmsPort.value), notes:String(iform.elements.notes.value||"").trim()};
@@ -1859,7 +1887,17 @@ iform.addEventListener("submit", async e=>{
   const clash = inters.get(newKey);
   // an intersection known only through its devices may be "added" to give it an ID/notes
   if(clash && clash!==old && (old || clash.docId)){
-    if(old) return err.textContent = `${interLabel(clash)} is already in the inventory.`;
+    if(old){
+      // renamed onto an intersection that already exists: offer to merge into it
+      const n = old.devices.length, nf = (filesMap.get(old.key)||[]).length;
+      const what = [n ? `${n} device${n===1?"":"s"}` : "", nf ? `${nf} file${nf===1?"":"s"}` : ""].filter(Boolean).join(" and ");
+      openConfirm("Intersection already exists",
+        `<strong>${esc(interLabel(clash))}</strong> is already in the inventory${clash.number ? ` as ${esc(clash.number)}` : ""}, with ${clash.devices.length} device${clash.devices.length===1?"":"s"}.<br><br>`
+        + `Move ${what ? esc(what) : "everything"} from <strong>${esc(interLabel(old))}</strong> to it and remove <strong>${esc(interLabel(old))}</strong>?`
+        + `<br><small class="hint">${esc(interLabel(clash))} keeps its own ID, ATMS details, GPS and notes; any of those it's missing are filled in from this form.</small>`,
+        "Move and remove old", ()=>mergeInter(old, clash, v), {safe:true});
+      return;
+    }
     // adding one that already exists: offer to add to the existing location instead
     closeInter();
     expanded.add(clash.key); searchOpen.add(clash.key); touchRecent(clash.key); render();
