@@ -73,6 +73,9 @@
   .ghead{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none;border-bottom:1px solid var(--line)}
   .group.collapsed .ghead{border-bottom:none}
   .group.collapsed .gbody{display:none}
+  /* devices sit slightly indented under their intersection bar */
+  .gbody > table{width:calc(100% - 24px);margin-left:24px}
+  body.mobile .gbody > table{width:calc(100% - 14px);margin-left:14px}
   .streetrow{display:flex;gap:6px}
   .dirsel{width:78px;flex:none;padding-left:8px;padding-right:4px}
   .sign.interstate{display:inline-flex;align-items:center;gap:6px;background:#1d4ea1;box-shadow:0 0 0 1px #1d4ea1;padding-left:5px}
@@ -960,7 +963,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.22-2";
+const APP_VERSION = "26.11.22-3";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
