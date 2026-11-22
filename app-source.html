@@ -963,7 +963,7 @@
 })();
 
 /* App version: YY.MM.DD-revision (year.month.day-revision of that day). Bump on every change. */
-const APP_VERSION = "26.11.22-4";
+const APP_VERSION = "26.11.22-5";
 document.getElementById("appVersion").textContent = "v" + APP_VERSION;
 const DEFAULT_TYPES = ["Camera","Traffic Signal Controller","Network Switch","Router","Wireless Radio","Vehicle Detector","Pedestrian Detector","Battery Backup (UPS)","Sensor","Other"];
 const $ = s => document.querySelector(s);
@@ -1858,7 +1858,18 @@ iform.addEventListener("submit", async e=>{
   const old = editingInterKey ? inters.get(editingInterKey) : null;
   const clash = inters.get(newKey);
   // an intersection known only through its devices may be "added" to give it an ID/notes
-  if(clash && clash!==old && (old || clash.docId)) return err.textContent = `${interLabel(clash)} is already in the inventory.`;
+  if(clash && clash!==old && (old || clash.docId)){
+    if(old) return err.textContent = `${interLabel(clash)} is already in the inventory.`;
+    // adding one that already exists: offer to add to the existing location instead
+    closeInter();
+    expanded.add(clash.key); searchOpen.add(clash.key); touchRecent(clash.key); render();
+    const n = clash.devices.length;
+    if(!can("devices.add")){ toast(`${interLabel(clash)} is already in the inventory`); return; }
+    openConfirm("Intersection already exists",
+      `<strong>${esc(interLabel(clash))}</strong> is already in the inventory${clash.number ? ` as ${esc(clash.number)}` : ""}, with ${n} device${n===1?"":"s"}. Add a device to this existing location?`,
+      "Add a device here", ()=>openEdit(null, clash.key), {safe:true});
+    return;
+  }
   if(v.number){
     const dupNum = idHolders(v.number, [old?.key, newKey].filter(Boolean));
     const unchanged = old && idKey(old.number)===idKey(v.number);
@@ -2076,6 +2087,11 @@ form.addEventListener("submit", async e=>{
     if(norm(s1)===norm(s2)) return err.textContent="The two streets must be different.";
     inter = inters.get(interKey(s1,s2));
     if(!inter) newInter = {street1:s1, street2:s2};
+    else {
+      // typed a "new" intersection that's already in the inventory: switch to the existing one and ask to confirm
+      fillInterSelect(inter.key); $("#interSel").value = inter.key; toggleNewInter();
+      return err.textContent = `${interLabel(inter)} is already in the inventory — this device will be added to that existing location. Press Save again to confirm.`;
+    }
   } else if(sel){ inter = inters.get(sel); }
   if(!inter && !newInter) return err.textContent="Choose the intersection for this device.";
   if(!d.name || d.name==="__new") return err.textContent="Choose a device from the list, or add a new one.";
